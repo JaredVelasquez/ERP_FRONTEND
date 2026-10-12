@@ -1,0 +1,16 @@
+export const loginMessages = {
+  kicker: 'Michelle Market',
+  title: 'Inicia sesión',
+  subtitle: 'La sesión usa la empresa de desarrollo. No es el registro legal de producción.',
+  email: 'Correo',
+  password: 'Contraseña',
+  company: 'Empresa',
+  onlyCompany: 'Única empresa',
+  companyHint: 'Si dejas esta opción, entras a la única empresa de la sesión.',
+  emailRequired: 'Escribe el correo con el que entras.',
+  emailInvalid: 'El correo debe incluir un dominio, por ejemplo nombre@empresa.com.',
+  passwordRequired: 'Escribe la contraseña.',
+  submit: 'Entrar',
+  signedIn: 'Sesión iniciada.',
+  failed: 'No se pudo iniciar sesión.',
+} as const
