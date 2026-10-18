@@ -16,9 +16,11 @@ Dependen del contrato del backend. No se adelanta una pantalla cuyo endpoint no 
 ## T-F002 — Sesión y shell
 
 - **Estado:** [~]
+- **Nota:** login y cookie ya conectados a `POST /identity/login` y `GET /erp/session` reales. Falta solo la elección de empresa cuando hay varias membresías, bloqueada por `ERP_Backend/docs/BLOCKERS.md` B-003 (no existe endpoint para listar membresías antes del login).
 - **Deps:** backend T-006, T-F001
 - **Hacer:**
-  - [ ] Login, cookie en web, elección de empresa
+  - [x] Login, cookie en web
+  - [ ] Elección de empresa (bloqueado por B-003 en backend)
   - [x] Navegación con las secciones de la fase, vacías si el endpoint no existe
 - **Listo cuando:** un operador no ve contabilidad
 
