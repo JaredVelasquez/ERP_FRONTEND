@@ -6,6 +6,7 @@ export const COMPANY_MODULES = [
   'accounting',
   'imports',
   'documents',
+  'settings',
 ] as const
 
 export const APP_MODULES = [...COMPANY_MODULES, 'platform'] as const

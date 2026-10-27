@@ -8,5 +8,6 @@ export const modulePath = {
   accounting: '/accounting',
   imports: '/imports',
   documents: '/documents',
+  settings: '/settings',
   platform: '/platform',
 } as const satisfies Record<AppModule, string>

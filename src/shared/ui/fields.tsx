@@ -1,13 +1,12 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react'
 import type { FieldReport } from '@/shared/hooks/use-field-set'
 
-export const controlClass =
-  'min-h-11 w-full rounded-lg border border-[#d5d8e0] bg-white px-3 text-base text-[#1c2430] caret-[#0157D2] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#0157D2] focus:shadow-[0_0_0_3px_rgba(1,87,210,0.2)] disabled:bg-[#f7f8fa] aria-[invalid=true]:border-[#9f1239] aria-[invalid=true]:shadow-[0_0_0_3px_rgba(159,18,57,0.12)]'
+export const controlClass = 'ui-control'
 
 const selectClass = `${controlClass} appearance-none pr-10`
 
 const checkClass =
-  'peer h-5 w-5 shrink-0 appearance-none rounded-md border border-[#d5d8e0] bg-white outline-none checked:border-[#0157D2] checked:bg-[#0157D2] focus-visible:shadow-[0_0_0_3px_rgba(1,87,210,0.2)]'
+  'peer h-5 w-5 shrink-0 appearance-none rounded-md border border-[var(--border-strong)] bg-white outline-none checked:border-[var(--brand)] checked:bg-[var(--brand)] focus-visible:shadow-[0_0_0_3px_rgba(1,87,210,0.2)]'
 
 export function FieldStack({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   const span = wide ? 'span-2' : ''
@@ -16,14 +15,14 @@ export function FieldStack({ children, wide = false }: { children: ReactNode; wi
 
 export function FieldLabel({ htmlFor, id, children }: { htmlFor: string; id?: string; children: ReactNode }) {
   return (
-    <label id={id} className="text-sm font-semibold text-[#1c2430]" htmlFor={htmlFor}>
+    <label id={id} className="text-sm font-semibold text-[var(--text)]" htmlFor={htmlFor}>
       {children}
     </label>
   )
 }
 
 export function FieldHint({ children }: { children: string }) {
-  return <p className="m-0 text-[0.82rem] leading-snug text-[#5c6778]">{children}</p>
+  return <p className="m-0 text-[0.82rem] leading-snug text-[var(--text-muted)]">{children}</p>
 }
 
 export function FieldError({ id, children }: { id?: string; children: string }) {
@@ -228,7 +227,7 @@ export function SelectField({
         </select>
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-3.5 top-1/2 h-2 w-2 -translate-y-[60%] rotate-45 border-b-2 border-r-2 border-[#1c2430]"
+            className="pointer-events-none absolute right-3.5 top-1/2 h-2 w-2 -translate-y-[60%] rotate-45 border-b-2 border-r-2 border-[var(--text)]"
         />
       </div>
       {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}

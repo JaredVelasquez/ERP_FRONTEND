@@ -10,7 +10,7 @@ export function PageIntro({ title, description, action }: { title: string; descr
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      {action}
+      {action ? <div className="page-intro-action">{action}</div> : null}
     </header>
   )
 }

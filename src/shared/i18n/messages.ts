@@ -1,6 +1,7 @@
 export const shellMessages = {
   brand: 'Michelle Market',
   sections: 'Secciones',
+  workspace: 'Espacio de trabajo',
   signedOut: 'La sesión no está iniciada.',
   noCompany: 'Ninguna empresa está cargada.',
   devCompany: 'Dato de desarrollo. No es el registro legal de producción.',
@@ -21,6 +22,7 @@ export const shellMessages = {
   imports: 'Importaciones',
   documents: 'Comprobantes',
   platform: 'Plataforma',
+  settings: 'Configuración',
 } as const
 
 export const tableMessages = {
@@ -41,6 +43,9 @@ export const tableMessages = {
   columnOptions: 'Opciones de columna',
   allVisible: 'Todas las columnas están visibles.',
   layoutFailed: 'No se pudo guardar el orden de las columnas.',
+  loadFailed: 'No se pudieron cargar los datos. Revisa tu conexión e inténtalo de nuevo.',
+  retry: 'Reintentar',
+  refreshing: 'Actualizando resultados…',
   dragInstructions: 'Para mover una columna, pulsa la barra espaciadora. Con las flechas eliges la nueva posición. Pulsa espacio para soltarla, o Escape para cancelar.',
   pickedUp: (label: string) => `Columna ${label} tomada.`,
   draggedOver: (label: string, over: string) => `Columna ${label} sobre ${over}.`,

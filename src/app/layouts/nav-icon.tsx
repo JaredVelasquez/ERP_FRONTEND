@@ -9,6 +9,7 @@ const paths: Record<AppModule | 'scan' | 'family', string> = {
   imports: 'M12 4v10m0 0l-4-4m4 4l4-4M5 19h14',
   documents: 'M7 3h7l4 4v14H7zM14 3v5h5M9 13h6M9 17h6',
   platform: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16.5 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3.5 19a4.5 4.5 0 0 1 9 0M13 19a3.5 3.5 0 0 1 7 0',
+  settings: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M18.4 5.6l-2.1 2.1m-8.6 8.6-2.1 2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
   scan: 'M5 7V5h2M17 5h2v2M5 17v2h2M19 17v2h-2M7 12h10',
   family: 'M8 7h8M8 12h8M8 17h5',
 }

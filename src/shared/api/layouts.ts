@@ -1,3 +1,4 @@
+﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
 
 export interface ColumnSetting {
@@ -13,7 +14,10 @@ export interface WidgetSetting {
   y: number
   w: number
   h: number
+  chartType: DashboardChartType
 }
+
+export type DashboardChartType = 'bar' | 'line' | 'area'
 
 export interface TableLayout {
   tableKey: string
@@ -30,7 +34,7 @@ export interface UiPreferences {
 }
 
 export async function readTableLayout(tableKey: string): Promise<TableLayout> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/layouts/tables/${encodeURIComponent(tableKey)}`, {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/layouts/tables/${encodeURIComponent(tableKey)}`, {
     credentials: 'include',
   })
   if (!response.ok) {
@@ -40,7 +44,7 @@ export async function readTableLayout(tableKey: string): Promise<TableLayout> {
 }
 
 export async function saveTableLayout(tableKey: string, layout: { pageSize: number; columns: ColumnSetting[] }): Promise<TableLayout> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/layouts/tables/${encodeURIComponent(tableKey)}`, {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/layouts/tables/${encodeURIComponent(tableKey)}`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
@@ -53,7 +57,7 @@ export async function saveTableLayout(tableKey: string, layout: { pageSize: numb
 }
 
 export async function readDashboardLayout(): Promise<DashboardLayout> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/layouts/dashboard`, { credentials: 'include' })
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/layouts/dashboard`, { credentials: 'include' })
   if (!response.ok) {
     throw new Error('layout')
   }
@@ -61,7 +65,7 @@ export async function readDashboardLayout(): Promise<DashboardLayout> {
 }
 
 export async function saveDashboardLayout(widgets: WidgetSetting[]): Promise<DashboardLayout> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/layouts/dashboard`, {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/layouts/dashboard`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
@@ -74,7 +78,7 @@ export async function saveDashboardLayout(widgets: WidgetSetting[]): Promise<Das
 }
 
 export async function readUiPreferences(): Promise<UiPreferences> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/preferences`, { credentials: 'include' })
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/preferences`, { credentials: 'include' })
   if (!response.ok) {
     throw new Error('preferences')
   }
@@ -86,7 +90,7 @@ export async function readUiPreferences(): Promise<UiPreferences> {
 }
 
 export async function saveUiPreferences(preferences: UiPreferences): Promise<UiPreferences> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/preferences`, {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/preferences`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
@@ -138,7 +142,15 @@ function readWidget(value: unknown): WidgetSetting[] {
     y: numberOf(value.y),
     w: numberOf(value.w),
     h: numberOf(value.h),
+    chartType: chartTypeOf(value.chartType),
   }]
+}
+
+function chartTypeOf(value: unknown): DashboardChartType {
+  if (value === 'line' || value === 'area') {
+    return value
+  }
+  return 'bar'
 }
 
 function pageSizeOf(value: unknown): number {

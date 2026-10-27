@@ -1,3 +1,4 @@
+﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
 import type { PageResult } from '@/shared/ui/server-table'
 
@@ -19,7 +20,7 @@ const documentLabels: Record<string, string> = {
   shrinkage: 'Merma',
   adjustment: 'Ajuste',
   'cash-transfer': 'Traslado',
-  void: 'Anulación',
+  void: 'AnulaciÃ³n',
 }
 
 const statusLabels: Record<string, string> = {
@@ -46,7 +47,7 @@ async function readRows(
   url.searchParams.set('page', String(query.page))
   url.searchParams.set('pageSize', String(query.pageSize))
   url.searchParams.set('search', query.search)
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   if (!response.ok) {
     throw new Error(path)
   }

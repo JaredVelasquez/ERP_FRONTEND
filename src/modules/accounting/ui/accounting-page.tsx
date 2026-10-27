@@ -2,16 +2,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSession } from '@/app/providers/session'
 import { useFieldSet } from '@/shared/hooks/use-field-set'
-import { shellMessages } from '@/shared/i18n/messages'
 import { Button } from '@/shared/ui/button'
 import { CheckField, TextField } from '@/shared/ui/fields'
 import { Form, FormActions, FormDialog } from '@/shared/ui/form-layout'
-import { DevNote, PageIntro, Panel } from '@/shared/ui/ops'
+import { PageIntro } from '@/shared/ui/ops'
 import { accountLevel, type AccountNode } from '../account'
 import { updateAccount } from '../api'
 import { useAccountTree } from '../hooks/use-account-tree'
 import { accountingMessages } from '../messages'
 import { AccountTree } from './account-tree'
+import { ListSkeleton } from '@/shared/ui/skeleton'
 
 export function AccountingPage() {
   const { companyId } = useSession()
@@ -61,18 +61,16 @@ export function AccountingPage() {
   }
 
   return (
-    <div className="ops-page">
+    <div className="ops-page accounting-page">
       <PageIntro title={accountingMessages.title} description={accountingMessages.description} />
-      {chart.isFetching ? <p role="status">{shellMessages.loading}</p> : null}
-      {chart.isError ? <DevNote>{accountingMessages.unavailable}</DevNote> : null}
-      {nodes.length > 0 ? <p className="account-hint">{accountingMessages.fromSession}</p> : null}
+      {chart.isFetching && chart.data ? <p className="table-refresh-status" role="status">Actualizando catálogo de cuentas…</p> : null}
+      {chart.isError ? <div className="table-load-error" role="alert"><p>{accountingMessages.unavailable}</p><Button type="button" variant="quiet" onClick={() => void chart.refetch()}>{accountingMessages.retry}</Button></div> : null}
       {notice ? <p role="status">{notice}</p> : null}
-      <Panel title={accountingMessages.chart}>
-        <AccountTree nodes={nodes} onEdit={setEditing} />
-      </Panel>
-      <Panel title={accountingMessages.journal}>
-        <p>{accountingMessages.noOpening}</p>
-      </Panel>
+      <section className="accounting-chart" aria-label={accountingMessages.chart}>
+        <div className="accounting-chart-head"><div><h2>{accountingMessages.chart}</h2><p>{accountingMessages.fromSession}</p></div><span className="accounting-chart-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3.5" y="4" width="25" height="24" rx="5" /><path d="M9 11h14M9 16h9M9 21h14" /></svg></span></div>
+        {chart.isPending ? <ListSkeleton rows={6} label="Cargando catálogo de cuentas…" /> : null}
+        {!chart.isPending && !chart.isError ? <AccountTree nodes={nodes} onEdit={setEditing} /> : null}
+      </section>
       <FormDialog
         dialogRef={dialogRef}
         title={editing?.code ?? accountingMessages.edit}

@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useSession } from '@/app/providers/session'
-import { DevNote, PageIntro } from '@/shared/ui/ops'
+import { PageIntro } from '@/shared/ui/ops'
 import { ServerTable } from '@/shared/ui/server-table'
 import { listInventoryDocuments } from '../api'
 import { inventoryMessages } from '../messages'
@@ -15,12 +15,8 @@ export function InventoryPage() {
   const { companyId } = useSession()
 
   return (
-    <div className="ops-page">
-      <PageIntro title={inventoryMessages.title} description={inventoryMessages.description} />
-      <DevNote>{inventoryMessages.noOpening}</DevNote>
-      <p>
-        <Link to="/scan">{inventoryMessages.scan}</Link>
-      </p>
+    <div className="ops-page inventory-page">
+      <PageIntro title={inventoryMessages.title} description={inventoryMessages.description} action={<Link className="ui-button ui-button--primary" to="/scan">{inventoryMessages.scan} <span aria-hidden="true">↗</span></Link>} />
       <ServerTable
         tableKey="inventory-documents"
         companyId={companyId}

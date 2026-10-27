@@ -49,6 +49,7 @@ describe('voucher form', () => {
       }),
     )
     render(<VoucherForm companyId="company-1" />)
+    fillRequiredVoucherFields()
     fireEvent.change(screen.getByLabelText(voucherMessages.bankReference), { target: { value: '23123' } })
     fireEvent.click(screen.getByLabelText(voucherMessages.declaration))
     drawSignature()
@@ -57,7 +58,7 @@ describe('voucher form', () => {
     expect(await screen.findByRole('button', { name: voucherMessages.download })).toBeInTheDocument()
     expect(screen.getByText(voucherMessages.saved)).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:3000/erp/vouchers',
+      'http://localhost:3000/erp/vouchers',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -69,9 +70,9 @@ describe('voucher form', () => {
     expect(body.serviceNote).toBe('')
     expect(body.serviceType).toBe('deposito-cuenta')
     expect(body.signature.startsWith('data:image/')).toBe(true)
-    expect(body.occurredOn).toBe('2026-10-04')
+    expect(body.occurredOn).toBe(todayLocalDate())
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:3000/erp/vouchers/voucher-9/confirm?companyId=company-1',
+      'http://localhost:3000/erp/vouchers/voucher-9/confirm?companyId=company-1',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     )
   })
@@ -86,6 +87,7 @@ describe('voucher form', () => {
       })),
     )
     render(<VoucherForm companyId="company-1" />)
+    fillRequiredVoucherFields()
     fireEvent.change(screen.getByLabelText(voucherMessages.bankReference), { target: { value: '23123' } })
     fireEvent.click(screen.getByLabelText(voucherMessages.declaration))
     drawSignature()
@@ -114,4 +116,25 @@ function drawSignature() {
     ({ left: 0, top: 0, width: 640, height: 200, right: 640, bottom: 200, x: 0, y: 0, toJSON() { return {} } }) as DOMRect
   fireEvent.pointerDown(canvas, { clientX: 8, clientY: 8, pointerId: 1 })
   fireEvent.pointerUp(canvas, { clientX: 24, clientY: 16, pointerId: 1 })
+}
+
+function fillRequiredVoucherFields(): void {
+  const values = [
+    [voucherMessages.amount, '1500'],
+    [voucherMessages.account, '001-123'],
+    [voucherMessages.holder, 'Michelle'],
+    [voucherMessages.institution, 'Ficohsa'],
+    [voucherMessages.dni, '0801199012345'],
+    [voucherMessages.phone, '99990000'],
+  ] as const
+  for (const [label, value] of values) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+  }
+}
+
+function todayLocalDate(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
 }

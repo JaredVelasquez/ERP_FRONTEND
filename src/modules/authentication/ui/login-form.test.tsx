@@ -18,16 +18,19 @@ describe('login', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          token: 'session-token',
-          role: 'owner',
-          companyId: 'company-dev',
-          companyName: 'Michelle Market (desarrollo)',
-          grants: ownerGrants,
-        }),
-      })),
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith('/identity/companies')) {
+          return { ok: true, json: async () => ({ companies: [{ companyId: 'company-dev', companyName: 'Michelle Market (desarrollo)' }] }) }
+        }
+        if (url.endsWith('/identity/login')) {
+          return { ok: true, json: async () => ({ token: 'session-token', accessToken: 'access-token', role: 'owner', userId: 'user-1', companyId: 'company-dev', companyName: 'Michelle Market (desarrollo)', grants: ownerGrants }) }
+        }
+        if (url.endsWith('/identity/refresh')) {
+          return { ok: false, json: async () => ({}) }
+        }
+        return { ok: true, json: async () => ({ userId: 'user-1', role: 'owner', companyId: 'company-dev', companyName: 'Michelle Market (desarrollo)', grants: ownerGrants }) }
+      }),
     )
   })
 
@@ -43,11 +46,11 @@ describe('login', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent(loginMessages.signedIn)
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:3000/identity/login',
+      'http://localhost:3000/identity/login',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-        body: JSON.stringify({ email: 'revision@michelle.local', password: 'secret' }),
+        body: JSON.stringify({ email: 'revision@michelle.local', password: 'secret', companyId: 'company-dev', clientPlatform: 'web' }),
       }),
     )
   })

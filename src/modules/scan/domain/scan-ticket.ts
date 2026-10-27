@@ -6,6 +6,7 @@ export interface CardPresentation {
 
 export interface PricedLine {
   productId: string
+  unit?: string
   factor: number
   quantity: number
   unitCost: number | null

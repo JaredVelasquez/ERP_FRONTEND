@@ -1,3 +1,4 @@
+﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
 import { CASH_ACCOUNT, type CardPresentation } from './domain/scan-ticket'
 
@@ -18,16 +19,15 @@ export interface PostedLine {
 
 export type LookupResult = StockCard | 'unknown' | 'failed'
 
-export async function searchByName(companyId: string, name: string): Promise<Array<{ name: string; barcode: string }>> {
-  const url = new URL('/erp/products', appConfig.gatewayUrl)
+export interface ProductSearchHit { name: string; barcode: string; supplier: string }
+
+export async function searchByName(companyId: string, name: string): Promise<ProductSearchHit[]> {
+  const url = new URL('/erp/products/search', appConfig.gatewayUrl)
   url.searchParams.set('companyId', companyId)
-  url.searchParams.set('page', '1')
-  url.searchParams.set('pageSize', '8')
-  url.searchParams.set('search', '')
-  url.searchParams.set('name', name)
-  const response = await fetch(url, { credentials: 'include' })
+  url.searchParams.set('q', name.trim())
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   if (!response.ok) {
-    return []
+    throw new Error('No se pudo buscar productos.')
   }
   return readNameHits(await response.json())
 }
@@ -36,7 +36,7 @@ export async function lookupCode(companyId: string, code: string): Promise<Looku
   const url = new URL('/erp/stock-cards', appConfig.gatewayUrl)
   url.searchParams.set('companyId', companyId)
   url.searchParams.set('code', code)
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   if (response.status === 400) {
     const message = await readMessage(response)
     if (message === 'Product was not found') {
@@ -53,7 +53,7 @@ export async function lookupCode(companyId: string, code: string): Promise<Looku
 export async function seedChart(companyId: string): Promise<boolean> {
   const url = new URL('/erp/accounts', appConfig.gatewayUrl)
   url.searchParams.set('companyId', companyId)
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   return response.ok
 }
 
@@ -62,13 +62,14 @@ export async function confirmMovement(input: {
   type: 'purchase' | 'sale'
   lines: Array<{
     productId: string
+    presentationUnit?: string
     presentationFactor: number
     quantity: number
     unitCost: number | null
     saleAmount: number | null
   }>
 }): Promise<{ journal: PostedLine[] } | { error: string }> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/inventory-documents/confirm`, {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/inventory-documents/confirm`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
@@ -92,21 +93,21 @@ export async function confirmMovement(input: {
   return { journal: readJournal(await response.json()) }
 }
 
-function readNameHits(payload: unknown): Array<{ name: string; barcode: string }> {
-  if (!isRecord(payload) || !Array.isArray(payload.items)) {
+function readNameHits(payload: unknown): ProductSearchHit[] {
+  if (!isRecord(payload) || !Array.isArray(payload.products)) {
     return []
   }
-  return payload.items.flatMap(readNameHit)
+  return payload.products.flatMap(readNameHit)
 }
 
-function readNameHit(value: unknown): Array<{ name: string; barcode: string }> {
+function readNameHit(value: unknown): ProductSearchHit[] {
   if (!isRecord(value) || typeof value.name !== 'string' || typeof value.internalBarcode !== 'string') {
     return []
   }
   if (value.internalBarcode === '') {
     return []
   }
-  return [{ name: value.name, barcode: value.internalBarcode }]
+  return [{ name: value.name, barcode: value.internalBarcode, supplier: typeof value.supplier === 'string' ? value.supplier : '' }]
 }
 
 function readCard(payload: unknown): LookupResult {

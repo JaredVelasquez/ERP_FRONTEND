@@ -1,12 +1,13 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/app/providers/session'
 import { useFieldSet } from '@/shared/hooks/use-field-set'
 import { Button } from '@/shared/ui/button'
 import { TextField } from '@/shared/ui/fields'
 import { Form, FormActions, FormDialog, FormNotice, FormSection } from '@/shared/ui/form-layout'
-import { DevNote, PageIntro } from '@/shared/ui/ops'
+import { PageIntro } from '@/shared/ui/ops'
 import { ServerTable } from '@/shared/ui/server-table'
-import { listCatalog } from '../api'
+import { createBarcodeSheet, createCatalogProduct, listCatalog } from '../api'
 import { productMessages } from '../messages'
 
 const productColumns = [
@@ -17,31 +18,77 @@ const productColumns = [
   { key: 'factor', label: 'Factor' },
   { key: 'barcode', label: 'Código' },
   { key: 'salePrice', label: 'Precio' },
-  { key: 'stock', label: 'Existencia' },
+  { key: 'actions', label: 'Acciones' },
 ] as const
 
 export function ProductsPage() {
   const { companyId } = useSession()
+  const queryClient = useQueryClient()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reveal, setReveal] = useState(0)
   const [formKey, setFormKey] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([])
+  const [barcodeBusy, setBarcodeBusy] = useState(false)
   const { report, ready } = useFieldSet(['name', 'factor'])
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setReveal((current) => current + 1)
-    if (!ready) {
+    if (!ready || companyId === null) {
       return
     }
-    setNotice(productMessages.pending)
-    setFormKey((current) => current + 1)
-    setReveal(0)
-    dialogRef.current?.close()
+    const data = new FormData(event.currentTarget)
+    const priceText = String(data.get('salePrice') ?? '').trim()
+    const salePrice = priceText === '' ? null : Number(priceText.replace(',', '.'))
+    if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice <= 0)) {
+      setNotice(productMessages.initialPriceInvalid)
+      return
+    }
+    setBusy(true)
+    try {
+      await createCatalogProduct({
+        companyId,
+        name: String(data.get('name') ?? ''),
+        unit: String(data.get('presentation') ?? ''),
+        factor: Number(String(data.get('factor') ?? '').replace(',', '.')),
+        salePrice,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['products', companyId] })
+      setNotice(priceText === '' ? 'Producto guardado sin precio. Propón uno en Precios para habilitar su venta.' : productMessages.saved)
+      setFormKey((current) => current + 1)
+      setReveal(0)
+      dialogRef.current?.close()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : productMessages.saveFailed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function downloadSelectedBarcodes() {
+    if (companyId === null || companyId === '' || selectedProducts.length === 0 || barcodeBusy) return
+    setBarcodeBusy(true)
+    setNotice(null)
+    try {
+      const pdf = await createBarcodeSheet(companyId, selectedProducts)
+      const url = URL.createObjectURL(pdf)
+      const download = document.createElement('a')
+      download.href = url
+      download.download = 'hoja-de-codigos.pdf'
+      download.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+      setNotice(productMessages.barcodeSheetReady)
+    } catch {
+      setNotice(productMessages.barcodeSheetFailed)
+    } finally {
+      setBarcodeBusy(false)
+    }
   }
 
   return (
-    <div className="ops-page">
+    <div className="ops-page products-page">
       <PageIntro
         title={productMessages.title}
         description={productMessages.description}
@@ -51,7 +98,6 @@ export function ProductsPage() {
           </Button>
         }
       />
-      <DevNote>{productMessages.noStock}</DevNote>
       {notice ? <FormNotice>{notice}</FormNotice> : null}
       <ServerTable
         tableKey="products"
@@ -61,6 +107,19 @@ export function ProductsPage() {
         empty={productMessages.empty}
         searchHint={productMessages.searchHint}
         remoteSort
+        headerActions={selectedProducts.length > 0 ? <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-[var(--text-muted)]">{productMessages.selectedBarcodeCount(selectedProducts.length)}</span>
+          <Button type="button" variant="quiet" onClick={() => setSelectedProducts([])}>{productMessages.clearBarcodeSelection}</Button>
+          <Button type="button" onClick={() => void downloadSelectedBarcodes()} disabled={barcodeBusy}>
+            {barcodeBusy ? 'Generando…' : productMessages.downloadBarcodeSheet}
+          </Button>
+        </div> : null}
+        rowActions={(id) => [{
+          label: selectedProducts.includes(id) ? productMessages.removeFromBarcodeSheet : productMessages.addToBarcodeSheet,
+          onSelect: () => setSelectedProducts((current) => current.includes(id)
+            ? current.filter((selectedId) => selectedId !== id)
+            : [...current, id]),
+        }]}
         load={async (query) => {
           const page = await listCatalog(companyId ?? '', {
             page: query.page,
@@ -80,7 +139,6 @@ export function ProductsPage() {
                 factor: row.factor,
                 barcode: row.barcode,
                 salePrice: row.salePrice,
-                stock: 'Sin saldo',
               },
             })),
           }
@@ -112,10 +170,21 @@ export function ProductsPage() {
               label={productMessages.factor}
               hint={productMessages.factorHint}
               inputMode="decimal"
+              defaultValue="1"
+              required
               field="factor"
               report={report}
               reveal={reveal}
               validate={factorIssue}
+            />
+            <TextField
+              id="product-sale-price"
+              name="salePrice"
+              label={productMessages.initialPrice}
+              hint={productMessages.initialPriceHint}
+              inputMode="decimal"
+              reveal={reveal}
+              validate={priceIssue}
             />
           </FormSection>
           <FormSection title="Código" hint={productMessages.barcodeNote} />
@@ -123,10 +192,11 @@ export function ProductsPage() {
             <Button type="button" variant="quiet" onClick={() => dialogRef.current?.close()}>
               {productMessages.close}
             </Button>
-            <Button type="submit" disabled={!ready}>
+            <Button type="submit" disabled={!ready || busy}>
               {productMessages.save}
             </Button>
           </FormActions>
+          {notice ? <FormNotice>{notice}</FormNotice> : null}
         </Form>
       </FormDialog>
     </div>
@@ -147,6 +217,15 @@ function factorIssue(value: string): string | null {
   const parsed = Number(value.replace(',', '.'))
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return productMessages.factorInvalid
+  }
+  return null
+}
+
+function priceIssue(value: string): string | null {
+  if (value.trim() === '') return null
+  const parsed = Number(value.replace(',', '.'))
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return productMessages.initialPriceInvalid
   }
   return null
 }

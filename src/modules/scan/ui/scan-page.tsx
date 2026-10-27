@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useSession } from '@/app/providers/session'
 import { PageIntro, Panel } from '@/shared/ui/ops'
-import { confirmMovement, lookupCode, searchByName, seedChart, type PostedLine, type StockCard } from '../api'
+import { ListSkeleton } from '@/shared/ui/skeleton'
+import { confirmMovement, lookupCode, searchByName, seedChart, type PostedLine, type ProductSearchHit, type StockCard } from '../api'
 import {
   formatMoney,
   formatQuantity,
@@ -13,6 +14,7 @@ import {
   receiptTotal,
   saleExceedsStock,
   saleTotal,
+  type CardPresentation,
   type PricedLine,
 } from '../domain/scan-ticket'
 import { scanMessages } from '../messages'
@@ -40,7 +42,10 @@ export function ScanPage() {
   const [lines, setLines] = useState<DraftLine[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [posted, setPosted] = useState<string[]>([])
-  const [choices, setChoices] = useState<Array<{ name: string; barcode: string }>>([])
+  const [choices, setChoices] = useState<ProductSearchHit[]>([])
+  const [presentationChoice, setPresentationChoice] = useState<{ card: StockCard; code: string } | null>(null)
+  const [posting, setPosting] = useState(false)
+  const [looking, setLooking] = useState(false)
   const priced = lines.flatMap(toPriced)
   const totalsReady = priced.length === lines.length
 
@@ -52,7 +57,24 @@ export function ScanPage() {
     }
     setPosted([])
     setChoices([])
-    const card = await lookupCode(companyId, nextCode)
+    setPresentationChoice(null)
+    setNotice(null)
+    setLooking(true)
+    try {
+      await findProduct(companyId, nextCode)
+    } finally {
+      setLooking(false)
+    }
+  }
+
+  async function findProduct(activeCompanyId: string, nextCode: string) {
+    let card: StockCard | 'unknown' | 'failed'
+    try {
+      card = await lookupCode(activeCompanyId, nextCode)
+    } catch {
+      setNotice(scanMessages.lookupFailed)
+      return
+    }
     if (card === 'failed') {
       setNotice(scanMessages.lookupFailed)
       return
@@ -61,7 +83,13 @@ export function ScanPage() {
       addFound(card, nextCode)
       return
     }
-    const hits = await searchByName(companyId, nextCode)
+    let hits: ProductSearchHit[]
+    try {
+      hits = await searchByName(activeCompanyId, nextCode)
+    } catch {
+      setNotice(scanMessages.lookupFailed)
+      return
+    }
     if (hits.length === 0) {
       setNotice(scanMessages.unknown)
       return
@@ -71,8 +99,16 @@ export function ScanPage() {
   }
 
   function addFound(card: StockCard, nextCode: string) {
-    const unit = pricedUnit(card)
-    if (mode === 'salida' && unit.salePrice === null) {
+    if (card.presentations.length > 1) {
+      setPresentationChoice({ card, code: nextCode })
+      setNotice(scanMessages.choosePresentation)
+      return
+    }
+    addSelected(card, nextCode, pricedUnit(card))
+  }
+
+  function addSelected(card: StockCard, nextCode: string, presentation: CardPresentation) {
+    if (mode === 'salida' && presentation.salePrice === null) {
       setNotice(scanMessages.noPrice)
       return
     }
@@ -83,34 +119,49 @@ export function ScanPage() {
         productId: card.productId,
         name: card.name,
         code: nextCode,
-        unit: unit.unit,
-        factor: unit.factor,
+        unit: presentation.unit,
+        factor: presentation.factor,
         quantityText: '1.0000',
         unitCostText: '',
-        salePrice: unit.salePrice,
+        salePrice: presentation.salePrice,
         onHand: card.baseQuantity,
       },
     ])
     setNotice(null)
     setCode('')
     setChoices([])
+    setPresentationChoice(null)
     codeRef.current?.focus()
+  }
+
+  function selectPresentation(presentation: CardPresentation) {
+    if (!presentationChoice) {
+      return
+    }
+    addSelected(presentationChoice.card, presentationChoice.code, presentation)
   }
 
   async function pick(barcode: string) {
     if (companyId === null || companyId === '') {
       return
     }
-    const card = await lookupCode(companyId, barcode)
-    if (card === 'unknown' || card === 'failed') {
-      setNotice(scanMessages.unknown)
-      return
+    setLooking(true)
+    try {
+      const card = await lookupCode(companyId, barcode)
+      if (card === 'unknown' || card === 'failed') {
+        setNotice(scanMessages.unknown)
+        return
+      }
+      addFound(card, barcode)
+    } catch {
+      setNotice(scanMessages.lookupFailed)
+    } finally {
+      setLooking(false)
     }
-    addFound(card, barcode)
   }
 
   async function onConfirm() {
-    if (companyId === null || companyId === '' || lines.length === 0) {
+    if (companyId === null || companyId === '' || lines.length === 0 || posting) {
       return
     }
     if (!totalsReady) {
@@ -125,30 +176,38 @@ export function ScanPage() {
       setNotice(scanMessages.cost)
       return
     }
-    const seeded = await seedChart(companyId)
-    if (!seeded) {
-      setNotice(scanMessages.chart)
-      return
-    }
-    const result = await confirmMovement({
+    setPosting(true)
+    try {
+      const seeded = await seedChart(companyId)
+      if (!seeded) {
+        setNotice(scanMessages.chart)
+        return
+      }
+      const result = await confirmMovement({
       companyId,
       type: mode === 'ingreso' ? 'purchase' : 'sale',
       lines: priced.map((line) => ({
         productId: line.productId,
+        presentationUnit: line.unit,
         presentationFactor: line.factor,
         quantity: line.quantity,
         unitCost: mode === 'ingreso' ? line.unitCost : null,
         saleAmount: mode === 'salida' ? money((line.salePrice ?? 0) * line.quantity) : null,
       })),
-    })
-    if ('error' in result) {
-      setNotice(noticeFor(result.error))
-      return
+      })
+      if ('error' in result) {
+        setNotice(noticeFor(result.error))
+        return
+      }
+      setLines([])
+      setNotice(mode === 'ingreso' ? scanMessages.postedIn : scanMessages.postedOut)
+      setPosted(postedNotes(result.journal))
+      codeRef.current?.focus()
+    } catch {
+      setNotice(scanMessages.failed)
+    } finally {
+      setPosting(false)
     }
-    setLines([])
-    setNotice(mode === 'ingreso' ? scanMessages.postedIn : scanMessages.postedOut)
-    setPosted(postedNotes(result.journal))
-    codeRef.current?.focus()
   }
 
   function keepQuantity(event: KeyboardEvent<HTMLInputElement>) {
@@ -165,34 +224,56 @@ export function ScanPage() {
     <div className="ops-page scan-page">
       <PageIntro title={scanMessages.title} description={scanMessages.description} />
       <div className="scan-modes" role="group" aria-label={scanMessages.title}>
-        <button type="button" className={mode === 'salida' ? 'primary-button' : 'ghost-button'} aria-pressed={mode === 'salida'} onClick={() => switchMode(setMode, setLines, 'salida')}>
+        <button type="button" className={mode === 'salida' ? 'primary-button' : 'ghost-button'} aria-pressed={mode === 'salida'} onClick={() => switchMode(setMode, setLines, setPresentationChoice, 'salida')}>
           {scanMessages.salida}
         </button>
-        <button type="button" className={mode === 'ingreso' ? 'primary-button' : 'ghost-button'} aria-pressed={mode === 'ingreso'} onClick={() => switchMode(setMode, setLines, 'ingreso')}>
+        <button type="button" className={mode === 'ingreso' ? 'primary-button' : 'ghost-button'} aria-pressed={mode === 'ingreso'} onClick={() => switchMode(setMode, setLines, setPresentationChoice, 'ingreso')}>
           {scanMessages.ingreso}
         </button>
       </div>
-      <Panel>
+      <div className="scan-workspace">
+      <Panel title="Buscar producto">
         <form className="toolbar" onSubmit={(event) => { void onScan(event) }}>
           <div className="field">
             <label htmlFor="scan-code">{scanMessages.code}</label>
-            <input id="scan-code" ref={codeRef} value={code} autoComplete="off" autoFocus onChange={(event) => setCode(event.target.value)} />
+            <input id="scan-code" ref={codeRef} value={code} autoComplete="off" autoFocus onChange={(event) => { setCode(event.target.value); setChoices([]); setPresentationChoice(null); setNotice(null) }} />
           </div>
-          <button type="submit" className="primary-button">{scanMessages.add}</button>
+          <button type="submit" className="primary-button" disabled={looking}>{looking ? 'Buscando…' : scanMessages.add}</button>
         </form>
+        {looking ? <ListSkeleton rows={3} label="Buscando coincidencias de producto…" /> : null}
         {choices.length > 0 ? (
           <ul className="choice-list">
             {choices.map((choice) => (
               <li key={choice.barcode}>
                 <button type="button" className="ghost-button" onClick={() => { void pick(choice.barcode) }}>
-                  {choice.name}
+                  <strong>{choice.name}</strong>
+                  <small>{choice.supplier ? `Proveedor: ${choice.supplier} · ` : 'Proveedor: sin asignar · '}Código: {choice.barcode}</small>
                 </button>
               </li>
             ))}
           </ul>
         ) : null}
+        {presentationChoice ? (
+          <div className="scan-presentation-choice" role="group" aria-label={scanMessages.choosePresentation}>
+            <p><strong>{presentationChoice.card.name}</strong> · {scanMessages.choosePresentation}</p>
+            <div className="scan-presentation-options">
+              {presentationChoice.card.presentations.map((presentation) => (
+                <button
+                  key={`${presentation.unit}-${presentation.factor}`}
+                  type="button"
+                  className="ghost-button"
+                  disabled={mode === 'salida' && presentation.salePrice === null}
+                  onClick={() => selectPresentation(presentation)}
+                >
+                  <strong>{presentation.unit}</strong>
+                  <small>{formatQuantity(presentation.factor)} · {presentation.salePrice === null ? scanMessages.noPrice : formatMoney(presentation.salePrice)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </Panel>
-      <Panel>
+      <Panel title={mode === 'salida' ? 'Venta actual' : 'Ingreso actual'}>
         {lines.length === 0 ? <p className="empty-row">{scanMessages.empty}</p> : null}
         <ul className="scan-lines">
           {lines.map((line) => (
@@ -235,19 +316,21 @@ export function ScanPage() {
           <span>{mode === 'salida' ? scanMessages.charge : scanMessages.costTotal}</span>
           <strong>{totalReady ? formatMoney(total) : '—'}</strong>
         </p>
-        <button type="button" className="primary-button" onClick={() => { void onConfirm() }}>
-          {mode === 'ingreso' ? scanMessages.confirmIn : scanMessages.confirmOut}
+        <button type="button" className="primary-button" disabled={lines.length === 0 || !totalReady || posting} onClick={() => { void onConfirm() }}>
+          {posting ? 'Registrando…' : mode === 'ingreso' ? scanMessages.confirmIn : scanMessages.confirmOut}
         </button>
         {posted.map((note) => <p key={note}>{note}</p>)}
         {notice ? <p role="status">{notice}</p> : null}
       </Panel>
+      </div>
     </div>
   )
 }
 
-function switchMode(setMode: (mode: ScanMode) => void, setLines: (lines: DraftLine[]) => void, mode: ScanMode): void {
+function switchMode(setMode: (mode: ScanMode) => void, setLines: (lines: DraftLine[]) => void, setPresentationChoice: (choice: { card: StockCard; code: string } | null) => void, mode: ScanMode): void {
   setMode(mode)
   setLines([])
+  setPresentationChoice(null)
 }
 
 function updateLine(setLines: (update: (lines: DraftLine[]) => DraftLine[]) => void, key: string, patch: Partial<DraftLine>): void {
@@ -281,6 +364,7 @@ function toPriced(line: DraftLine): PricedLine[] {
   }
   return [{
     productId: line.productId,
+    unit: line.unit,
     factor: line.factor,
     quantity: parsed,
     unitCost,
@@ -290,6 +374,9 @@ function toPriced(line: DraftLine): PricedLine[] {
 }
 
 function noticeFor(message: string): string {
+  if (message === 'Sale price changed; refresh the ticket') {
+    return scanMessages.priceChanged
+  }
   if (message === 'Insufficient stock') {
     return scanMessages.negative
   }

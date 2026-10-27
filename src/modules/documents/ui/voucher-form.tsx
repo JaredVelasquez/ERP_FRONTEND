@@ -5,7 +5,7 @@ import { DateField } from '@/shared/ui/date-field'
 import { CheckField, SelectField, TextField } from '@/shared/ui/fields'
 import { Form, FormActions, FormNotice, FormSection } from '@/shared/ui/form-layout'
 import { Panel } from '@/shared/ui/ops'
-import { downloadVoucherPdf, saveSignedVoucher } from '../api'
+import { downloadVoucherPdf, saveSignedVoucher, uploadBankReceipt } from '../api'
 import { signVoucherLocally, voucherFormIssue } from '../domain/sign-voucher'
 import { voucherMessages } from '../messages'
 import { SignaturePad } from './signature-pad'
@@ -36,6 +36,7 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
     setReveal((current) => current + 1)
     setSignatureTouched(true)
     const data = new FormData(event.currentTarget)
+    const bankReceipt = data.get('bankReceipt')
     const input = {
       bankReference: String(data.get('bankReference') ?? ''),
       moneyMovementId: String(data.get('moneyMovementId') ?? ''),
@@ -89,8 +90,19 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
         moneyMovementId: prepared.moneyMovementId,
       })
       setVoucherId(saved.id)
-      setNotice(voucherMessages.saved)
       onSigned?.()
+      if (bankReceipt instanceof File && bankReceipt.size > 0) {
+        try {
+          await uploadBankReceipt(companyId, saved.id, bankReceipt)
+          setNotice('Comprobante manual y ticket bancario del POS vinculados correctamente.')
+          onSigned?.()
+        } catch (error) {
+          setFailed(true)
+          setNotice(`El comprobante manual se guardÃ³, pero no se pudo vincular el ticket del POS. Puedes reintentarlo desde la fila: ${error instanceof Error ? error.message : 'error de carga'}`)
+        }
+      } else {
+        setNotice(voucherMessages.saved)
+      }
     } catch (error) {
       setVoucherId(null)
       setFailed(true)
@@ -152,7 +164,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               name="amount"
               label={voucherMessages.amount}
               inputMode="decimal"
-              defaultValue="500.00"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="amount"
@@ -174,7 +185,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               name="reference"
               label={voucherMessages.account}
               wide
-              defaultValue="CMP-DEV-001"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="reference"
@@ -186,7 +196,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               name="holder"
               label={voucherMessages.holder}
               wide
-              defaultValue="Cliente de desarrollo"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="holder"
@@ -198,7 +207,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               name="institution"
               label={voucherMessages.institution}
               wide
-              defaultValue="Ficohsa"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="institution"
@@ -209,7 +217,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               id="dni"
               name="dni"
               label={voucherMessages.dni}
-              defaultValue="0801199000001"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="dni"
@@ -221,7 +228,6 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               name="phone"
               type="tel"
               label={voucherMessages.phone}
-              defaultValue="9999-0000"
               required
               requiredMessage={voucherMessages.saveFailed}
               field="phone"
@@ -232,7 +238,7 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
               id="occurredOn"
               name="occurredOn"
               label={voucherMessages.occurredOn}
-              defaultValue="2026-10-04"
+              defaultValue={todayLocalDate()}
               required
               requiredMessage={voucherMessages.dateRequired}
               field="occurredOn"
@@ -277,6 +283,10 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
                 label={voucherMessages.moneyMovement}
                 hint={voucherMessages.movementHint}
               />
+              <label className="voucher-pos-receipt" htmlFor="bankReceipt">
+                <span>Adjuntar comprobante bancario del POS <small>Opcional · Se adjunta al comprobante manual; nunca lo reemplaza. Si ya hay un archivo POS, se actualizará ese adjunto. PDF, JPG o PNG, hasta 12 MB.</small></span>
+                <input id="bankReceipt" name="bankReceipt" type="file" accept="application/pdf,image/jpeg,image/png" />
+              </label>
             </FormSection>
           </div>
           <FormActions>
@@ -307,4 +317,11 @@ function currencyOf(value: string): 'HNL' | 'USD' | null {
     return value
   }
   return null
+}
+
+function todayLocalDate(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
 }

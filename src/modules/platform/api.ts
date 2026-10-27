@@ -1,3 +1,4 @@
+﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
 import type { PageResult } from '@/shared/ui/server-table'
 
@@ -7,7 +8,7 @@ export async function listCompanyUsers(companyId: string, query: { page: number;
   url.searchParams.set('page', String(query.page))
   url.searchParams.set('pageSize', String(query.pageSize))
   url.searchParams.set('search', query.search)
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   if (!response.ok) {
     throw new Error('users')
   }

@@ -1,13 +1,44 @@
 import { appConfig } from '@/app/config/app-config'
 import { APP_MODULES, type ModuleGrant } from '@/modules/access'
 import { loginRequestSchema, loginResponseSchema } from '@/shared/api/erp-client'
+import { authenticatedFetch, refreshAccessToken, setAccessToken } from '@/shared/api/http-client'
+import { clearStoredRefreshToken, getStoredRefreshToken, setStoredRefreshToken } from '@/shared/api/refresh-token-store'
+import { clientPlatform } from '@/shared/api/client-platform'
 
 export interface SignedSession {
+  userId?: string
   role: 'platform-admin' | 'owner' | 'operator'
   companyId: string
   companyName: string
   grants: ModuleGrant[]
   logoUrl: string | null
+}
+
+export interface LoginCompany {
+  companyId: string
+  companyName: string
+}
+
+export async function listLoginCompanies(email: string, password: string): Promise<LoginCompany[]> {
+  const response = await fetch(`${appConfig.gatewayUrl}/identity/companies`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), password }),
+  })
+  if (!response.ok) {
+    throw new Error('Login failed')
+  }
+  const payload: unknown = await response.json()
+  if (!isRecord(payload) || !Array.isArray(payload.companies)) {
+    throw new Error('Invalid company list')
+  }
+  return payload.companies.flatMap((row) => {
+    if (!isRecord(row) || typeof row.companyId !== 'string' || typeof row.companyName !== 'string') {
+      return []
+    }
+    return [{ companyId: row.companyId, companyName: row.companyName }]
+  })
 }
 
 export async function loginWithPassword(input: {
@@ -25,14 +56,18 @@ export async function loginWithPassword(input: {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, clientPlatform: clientPlatform() }),
   })
   if (!response.ok) {
     throw new Error('Login failed')
   }
   const payload: unknown = await response.json()
   const parsed = loginResponseSchema.parse(payload)
+  setAccessToken(readText(payload, 'accessToken') || parsed.token)
+  const refreshToken = readText(payload, 'refreshToken')
+  if (refreshToken !== '') await setStoredRefreshToken(refreshToken)
   return {
+    userId: readText(payload, 'userId'),
     role: parsed.role,
     companyId: readText(payload, 'companyId'),
     companyName: readText(payload, 'companyName'),
@@ -42,11 +77,24 @@ export async function loginWithPassword(input: {
 }
 
 export async function readCurrentSession(): Promise<SignedSession | null> {
-  const response = await fetch(`${appConfig.gatewayUrl}/erp/session`, { credentials: 'include' })
+  const accessToken = await refreshAccessToken()
+  const response = accessToken === null
+    ? await fetch(`${appConfig.gatewayUrl}/erp/session`, { credentials: 'include' })
+    : await authenticatedFetch(`${appConfig.gatewayUrl}/erp/session`)
   if (!response.ok) {
     return null
   }
   return readSignedSession(await response.json())
+}
+
+export async function logout(): Promise<void> {
+  const refreshToken = await getStoredRefreshToken()
+  await fetch(`${appConfig.gatewayUrl}/identity/logout`, {
+    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(refreshToken === null ? {} : { refreshToken, clientPlatform: clientPlatform() }),
+  }).catch(() => undefined)
+  setAccessToken(null)
+  await clearStoredRefreshToken()
 }
 
 function readSignedSession(payload: unknown): SignedSession | null {
@@ -58,6 +106,7 @@ function readSignedSession(payload: unknown): SignedSession | null {
     return null
   }
   return {
+    userId: readText(payload, 'userId'),
     role,
     companyId: readText(payload, 'companyId'),
     companyName: readText(payload, 'companyName'),

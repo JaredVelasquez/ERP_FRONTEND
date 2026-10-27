@@ -1,5 +1,32 @@
+﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
 import type { PageResult } from '@/shared/ui/server-table'
+
+export async function importCatalog(companyId: string, csv: string): Promise<{ document: unknown | null }> {
+  const response = await authenticatedFetch(new URL('/erp/imports/catalog', appConfig.gatewayUrl), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ companyId, csv, receivedAt: new Date().toISOString() }),
+  })
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null)
+    const detail = isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'No se pudo importar el catÃ¡logo.'
+    throw new Error(detail)
+  }
+  return response.json() as Promise<{ document: unknown | null }>
+}
+
+export async function downloadCatalogTemplate(): Promise<void> {
+  const response = await authenticatedFetch(new URL('/erp/imports/catalog-template', appConfig.gatewayUrl), { credentials: 'include' })
+  if (!response.ok) throw new Error('No se pudo descargar la plantilla.')
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'plantilla-catalogo.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+}
 
 export async function listImportHistory(companyId: string, query: { page: number; pageSize: number; search: string }): Promise<PageResult> {
   const url = new URL('/erp/import-history', appConfig.gatewayUrl)
@@ -7,7 +34,7 @@ export async function listImportHistory(companyId: string, query: { page: number
   url.searchParams.set('page', String(query.page))
   url.searchParams.set('pageSize', String(query.pageSize))
   url.searchParams.set('search', query.search)
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await authenticatedFetch(url, { credentials: 'include' })
   if (!response.ok) {
     throw new Error('imports')
   }

@@ -7,6 +7,8 @@ export const loginMessages = {
   company: 'Empresa',
   onlyCompany: 'Única empresa',
   companyHint: 'Si dejas esta opción, entras a la única empresa de la sesión.',
+  chooseCompany: 'Elige la empresa antes de entrar.',
+  chooseCompanyOption: 'Selecciona una empresa',
   emailRequired: 'Escribe el correo con el que entras.',
   emailInvalid: 'El correo debe incluir un dominio, por ejemplo nombre@empresa.com.',
   passwordRequired: 'Escribe la contraseña.',

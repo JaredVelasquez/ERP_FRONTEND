@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable, type VisibilityState } from '@tanstack/react-table'
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   saveTableLayout,
@@ -40,6 +40,8 @@ import {
 import { Button } from '@/shared/ui/button'
 import { SearchField, SelectField } from '@/shared/ui/fields'
 import { Panel } from '@/shared/ui/ops'
+import { RowActionsMenu, type RowAction } from '@/shared/ui/row-actions-menu'
+import { TableSkeleton } from '@/shared/ui/skeleton'
 
 export interface TableColumn {
   key: string
@@ -63,6 +65,7 @@ export interface PageResult {
   page: number
   pageSize: number
   total: number
+  hasMore?: boolean
 }
 
 type ServerTableProps = {
@@ -74,6 +77,13 @@ type ServerTableProps = {
   searchHint?: string
   remoteSort?: boolean
   load: (query: PageQuery) => Promise<PageResult>
+  onRowAction?: (id: string, row?: TableRow) => void
+  rowActions?: (id: string, row: TableRow) => RowAction[]
+  rowActionLabel?: string
+  searchable?: boolean
+  unknownTotal?: boolean
+  title?: string
+  headerActions?: ReactNode
 }
 
 type OpenMenu = {
@@ -85,7 +95,7 @@ type OpenMenu = {
 
 const helper = createColumnHelper<TableRow>()
 
-export function ServerTable({ tableKey, companyId, columns, queryKey, empty, searchHint, remoteSort = false, load }: ServerTableProps) {
+export function ServerTable({ tableKey, companyId, columns, queryKey, empty, searchHint, remoteSort = false, load, onRowAction, rowActions, rowActionLabel = 'Editar', searchable = true, unknownTotal = false, title, headerActions }: ServerTableProps) {
   const queryClient = useQueryClient()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const columnsButtonRef = useRef<HTMLButtonElement>(null)
@@ -126,6 +136,7 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
     retry: false,
   })
   const result = rows.data
+  const initialLoading = enabled && rows.isPending && result === undefined
   const total = result?.total ?? 0
   const settings = mergeColumns(columns, layout.data?.columns)
   const sortedItems = useMemo(
@@ -137,8 +148,13 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
   const defs = useMemo(() => columns.map((column) => helper.accessor((row) => row.cells[column.key] ?? '', {
     id: column.key,
     header: column.label,
-    cell: (info) => cellOf(column.key, info.getValue()),
-  })), [columns])
+    cell: (info) => column.key === 'actions'
+      ? <div className="table-row-actions">
+          {onRowAction ? <Button type="button" variant="quiet" onClick={() => onRowAction(info.row.original.id, info.row.original)}>{rowActionLabel}</Button> : null}
+          {rowActions ? <RowActionsMenu label={`Opciones de ${info.row.original.cells.name ?? info.row.original.cells.user ?? 'registro'}`} actions={rowActions(info.row.original.id, info.row.original)} /> : null}
+        </div>
+      : cellOf(column.key, info.getValue()),
+  })), [columns, onRowAction, rowActions, rowActionLabel])
   const table = useReactTable({
     data: sortedItems,
     columns: defs,
@@ -317,8 +333,9 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
 
   return (
     <Panel>
+      {title || headerActions ? <header className="panel-head">{title ? <h2>{title}</h2> : <span />}{headerActions}</header> : null}
       <form className="toolbar" onSubmit={onSearch}>
-        <div className="min-w-[min(280px,100%)] flex-1">
+        {searchable ? <div className="min-w-[min(280px,100%)] flex-1">
           <SearchField
             id={`${tableKey}-search`}
             label={tableMessages.search}
@@ -326,8 +343,9 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
             value={searchDraft}
             onValue={setSearchDraft}
           />
-        </div>
-        <Button type="submit" variant="quiet">{tableMessages.searchAction}</Button>
+        </div> : null}
+        {searchable ? <Button type="submit" variant="quiet">{tableMessages.searchAction}</Button> : null}
+        <Button type="button" variant="quiet" onClick={() => void rows.refetch()} disabled={rows.isFetching}>Actualizar</Button>
         <SelectField
           id={`${tableKey}-size`}
           name="pageSize"
@@ -354,10 +372,12 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
           {tableMessages.columns}
         </button>
       </form>
-      {rows.isFetching ? <p role="status">{shellMessages.loading}</p> : null}
-      {rows.isError ? <p className="form-alert" role="status">{empty}</p> : null}
+      {!enabled ? <p className="empty-row">{shellMessages.noCompany}</p> : null}
+      {initialLoading ? <TableSkeleton columns={visibleColumns.length} label={`${shellMessages.loading} ${title ?? tableMessages.search.toLocaleLowerCase()}…`} /> : null}
+      {rows.isFetching && !initialLoading ? <p className="table-refresh-status" role="status">{tableMessages.refreshing}</p> : null}
+      {rows.isError ? <div className="table-load-error" role="alert"><p>{tableMessages.loadFailed}</p><Button type="button" variant="quiet" onClick={() => void rows.refetch()} disabled={rows.isFetching}>{tableMessages.retry}</Button></div> : null}
       {layoutError ? <p className="form-alert" role="status">{layoutError}</p> : null}
-      {visibleColumns.length === 0 || (result?.items.length ?? 0) === 0 ? <p className="empty-row">{empty}</p> : null}
+      {!initialLoading && !rows.isError && result?.items.length === 0 ? <p className="empty-row">{empty}</p> : null}
       {visibleColumns.length > 0 && (result?.items.length ?? 0) > 0 ? (
         <div className="table-scroll">
           <DndContext
@@ -406,17 +426,17 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
           </DndContext>
         </div>
       ) : null}
-      <div className="table-footer">
-        <p>{tableMessages.range(rangeFrom(page, pageSize, total), rangeTo(page, pageSize, total), total)}</p>
+      {result !== undefined ? <div className="table-footer">
+        <p>{unknownTotal ? `Página ${page}` : tableMessages.range(rangeFrom(page, pageSize, total), rangeTo(page, pageSize, total), total)}</p>
         <div className="pager">
           <button type="button" className="ghost-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
             {tableMessages.previous}
           </button>
-          <button type="button" className="ghost-button" disabled={page * pageSize >= total} onClick={() => setPage(page + 1)}>
+          <button type="button" className="ghost-button" disabled={result?.hasMore === undefined ? page * pageSize >= total : !result.hasMore} onClick={() => setPage(page + 1)}>
             {tableMessages.next}
           </button>
         </div>
-      </div>
+      </div> : null}
       {menu !== null && menuColumn !== undefined ? createPortal(
         <div
           ref={menuRef}
@@ -592,7 +612,12 @@ function cellOf(key: string, value: string) {
   if (key !== 'status') {
     return value
   }
-  return <span className="status-chip">{value}</span>
+  const blocked = ['revocado', 'deshabilitado', 'anulado', 'denegado', 'error', 'rechazado']
+  const pending = ['vencido', 'pendiente', 'borrador']
+  const normalized = value.toLocaleLowerCase('es-HN')
+  const tone = blocked.some((label) => normalized.includes(label)) ? 'danger'
+    : pending.some((label) => normalized.includes(label)) ? 'warning' : 'success'
+  return <span className={`status-chip status-chip--${tone}`}>{value}</span>
 }
 
 function visibilityOf(columns: readonly ColumnSetting[]): VisibilityState {
