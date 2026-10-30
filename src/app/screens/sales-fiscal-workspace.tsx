@@ -60,7 +60,7 @@ export function SalesFiscalWorkspace() {
       {activeCategory === 'inventory' ? <>
         {paymentConfiguration.isError ? <p className="form-alert" role="alert">No se cargaron métodos de pago. <Link to="/settings/payments">Revisar configuración</Link></p> : null}
         <ScanPage embedded paymentMethods={paymentConfiguration.data?.settings.paymentMethods ?? []} onMovementPosted={(document, prepareInvoice) => { void movementPosted(document, prepareInvoice) }} />
-        {pendingFiscalSaleId ? <div ref={inlineFiscalRef} className="operations-inline-fiscal"><FiscalPage embedded initialSaleId={pendingFiscalSaleId} focusSaleOnly renderDocument={renderFiscalDocument} /></div> : null}
+        {pendingFiscalSaleId ? <div ref={inlineFiscalRef} className="operations-inline-fiscal"><FiscalPage embedded initialSaleId={pendingFiscalSaleId} focusSaleOnly renderDocument={renderFiscalDocument} onDismiss={() => setPendingFiscalSaleId(null)} /></div> : null}
       </> : null}
       {activeCategory === 'fiscal' ? <FiscalPage embedded initialSaleId={pendingFiscalSaleId} renderDocument={renderFiscalDocument} /> : null}
       {activeCopy.types.length > 0 ? <DocumentCenterPage key={activeCategory} embedded allowedTypes={activeCopy.types} initialType={activeCopy.types[0]} /> : null}

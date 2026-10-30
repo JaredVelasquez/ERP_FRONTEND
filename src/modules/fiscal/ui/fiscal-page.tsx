@@ -36,14 +36,16 @@ interface FiscalPageProps {
   initialSaleId?: string | null
   focusSaleOnly?: boolean
   renderDocument?: (document: FiscalPreviewModel, watermark: string) => ReactNode
+  onDismiss?: () => void
 }
 
-export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOnly = false, renderDocument }: FiscalPageProps) {
+export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOnly = false, renderDocument, onDismiss }: FiscalPageProps) {
   const { companyName, logoUrl } = useSession()
   const queryClient = useQueryClient()
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
   const [selectedDocument, setSelectedDocument] = useState<SandboxFiscalDocument | null>(null)
   const [view, setView] = useState<'pending' | 'history'>('pending')
+  const [dismissedInitialSaleId, setDismissedInitialSaleId] = useState<string | null>(null)
   const sales = useQuery({ queryKey: ['fiscal-sandbox', 'eligible-sales'], queryFn: listEligibleSandboxSales })
   const documents = useQuery({ queryKey: ['fiscal-sandbox', 'documents'], queryFn: listSandboxFiscalDocuments })
   const selectedSale = sales.data?.find((sale) => sale.id === selectedSaleId) ?? null
@@ -60,13 +62,25 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
   }, [reviewing, selectedDocument])
 
   useEffect(() => {
-    if (initialSaleId && sales.data?.some((sale) => sale.id === initialSaleId)) {
-      setSelectedSaleId(initialSaleId)
+    const usableInitialSaleId = initialSaleId && initialSaleId !== dismissedInitialSaleId ? initialSaleId : null
+    if (usableInitialSaleId && sales.data?.some((sale) => sale.id === usableInitialSaleId)) {
+      setSelectedSaleId(usableInitialSaleId)
       return
     }
-    if (selectedSaleId === null && (sales.data?.length ?? 0) > 0) setSelectedSaleId(sales.data?.[0]?.id ?? null)
-    if (selectedSaleId !== null && !sales.data?.some((sale) => sale.id === selectedSaleId)) setSelectedSaleId(sales.data?.[0]?.id ?? null)
-  }, [initialSaleId, sales.data, selectedSaleId])
+    // A sale the user had selected can disappear from the list once it is no longer eligible
+    // (for example, right after it gets issued elsewhere). Beyond that, selection is explicit:
+    // opening this page never auto-picks a sale and pops the review dialog on its own.
+    if (selectedSaleId !== null && !sales.data?.some((sale) => sale.id === selectedSaleId)) setSelectedSaleId(null)
+  }, [initialSaleId, dismissedInitialSaleId, sales.data, selectedSaleId])
+
+  function closeReview(): void {
+    if (initialSaleId && (selectedSaleId === initialSaleId || selectedDocument)) {
+      setDismissedInitialSaleId(initialSaleId)
+      onDismiss?.()
+    }
+    setSelectedDocument(null)
+    setSelectedSaleId(null)
+  }
 
   const issue = useMutation({
     mutationFn: issueSandboxFiscalDocument,
@@ -116,26 +130,19 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
         </div> : null}
       </Panel> : null}
 
-      {previewModel ? <Panel title={selectedDocument ? 'Factura emitida' : '2. Revisa la factura completa antes de emitir'}>
-        <div className="fiscal-preview-toolbar">
-          <div><strong>{selectedDocument ? `Factura ${selectedDocument.documentNumber}` : 'Vista previa con datos reales de la venta'}</strong><small>{selectedDocument ? 'El correlativo y la autorización ya fueron reservados.' : 'Revisar no consume correlativo, CAI ni modifica inventario.'}</small></div>
-          <div className="fiscal-preview-toolbar__actions">
-            <Button type="button" variant="quiet" onClick={() => reviewDialogRef.current?.showModal()}>Ver vista previa</Button>
-            {!selectedDocument ? <Button type="button" disabled={issue.isPending} onClick={() => selectedSale && issue.mutate(selectedSale.id)}>{issue.isPending ? 'Emitiendo…' : 'Confirmar y emitir factura'}</Button> : null}
-          </div>
-        </div>
-        {issue.isError ? <p className="form-alert" role="alert">{issue.error.message}</p> : null}
-        {selectedDocument ? <div className="fiscal-success" role="status"><strong>Factura emitida correctamente</strong><span>La venta quedó vinculada al documento {selectedDocument.documentNumber}.</span></div> : null}
-      </Panel> : null}
-      <dialog ref={reviewDialogRef} className="dc-preview-dialog" aria-labelledby="fiscal-review-title">
+      <dialog ref={reviewDialogRef} className="dc-preview-dialog" aria-labelledby="fiscal-review-title" onClose={closeReview}>
         <div className="dc-preview-dialog__shell">
           <header className="dc-preview-dialog__header">
             <div><h2 id="fiscal-review-title">{selectedDocument ? `Factura ${selectedDocument.documentNumber}` : 'Vista previa con datos reales de la venta'}</h2><p>{selectedDocument ? 'El correlativo y la autorización ya fueron reservados.' : 'Revisar no consume correlativo, CAI ni modifica inventario.'}</p></div>
             <IconAction icon="close" label="Cerrar vista previa" onClick={() => reviewDialogRef.current?.close()} />
           </header>
-          <div className="dc-preview-dialog__viewport"><style>{`@media print { @page { size: A4 portrait; margin: 0; } }`}</style><div className="fiscal-document-canvas">
-            {previewModel ? (renderDocument ? renderDocument(previewModel, watermark) : <FallbackPreview document={previewModel} watermark={watermark} />) : null}
-          </div></div>
+          <div className="dc-preview-dialog__viewport"><style>{`@media print { @page { size: A4 portrait; margin: 0; } }`}</style>
+            {issue.isError ? <p className="form-alert" role="alert">{issue.error.message}</p> : null}
+            {selectedDocument ? <div className="fiscal-success" role="status"><strong>Factura emitida correctamente</strong><span>La venta quedó vinculada al documento {selectedDocument.documentNumber}.</span></div> : null}
+            <div className="fiscal-document-canvas">
+              {previewModel ? (renderDocument ? renderDocument(previewModel, watermark) : <FallbackPreview document={previewModel} watermark={watermark} />) : null}
+            </div>
+          </div>
           <footer className="dc-preview-dialog__footer">
             <span><strong>{selectedDocument ? 'Documento listo para consultar' : 'Revisión obligatoria'}</strong><small>La impresión usa el tamaño y orientación configurados en la plantilla.</small></span>
             <div className="dc-preview-confirm__actions">
