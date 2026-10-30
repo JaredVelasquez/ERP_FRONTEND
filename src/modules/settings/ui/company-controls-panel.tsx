@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/shared/ui/button'
 import { ListSkeleton } from '@/shared/ui/skeleton'
-import { createAccountingPeriod, createWarehouse, importBankStatementLine, readCompanyControls, saveCompanyControls, setAccountingPeriodStatus, setBankStatementLineStatus, setDefaultWarehouse, type CompanyControls } from '../api'
+import { createAccountingPeriod, createWarehouse, importBankStatementLine, readCompanyControls, renameWarehouse, saveCompanyControls, setAccountingPeriodStatus, setBankStatementLineStatus, setDefaultWarehouse, setWarehouseActive, type CompanyControls } from '../api'
 
 export function CompanyControlsPanel() {
   const client = useQueryClient()
@@ -48,7 +48,24 @@ function FiscalAndPrecisionForm({ data, busy, onSave }: { data: CompanyControls;
 
 function Digit({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) { return <label className="field">{label}<input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} /></label> }
 
-function WarehouseManager({ data, busy, run }: ManagerProps) { return <><form className="control-inline" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run(() => createWarehouse({ code: String(form.get('code')), name: String(form.get('name')) })); event.currentTarget.reset() }}><label className="field">Código<input name="code" placeholder="BOD-002" required /></label><label className="field">Nombre<input name="name" placeholder="Sucursal centro" required /></label><Button type="submit" disabled={busy}>Agregar bodega</Button></form><div className="control-list">{data.warehouses.map((item) => <article key={item.id}><span><strong>{item.code} · {item.name}</strong><small>{item.isDefault ? 'Predeterminada' : item.active ? 'Activa' : 'Inactiva'}</small></span>{!item.isDefault ? <Button type="button" variant="quiet" onClick={() => run(() => setDefaultWarehouse(item.id))}>Usar por defecto</Button> : null}</article>)}</div></> }
+function WarehouseManager({ data, busy, run }: ManagerProps) {
+  const [renaming, setRenaming] = useState<string | null>(null)
+  return <><form className="control-inline" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run(() => createWarehouse({ code: String(form.get('code')), name: String(form.get('name')) })); event.currentTarget.reset() }}><label className="field">Código<input name="code" placeholder="BOD-002" required /></label><label className="field">Nombre<input name="name" placeholder="Sucursal centro" required /></label><Button type="submit" disabled={busy}>Agregar bodega</Button></form>
+    <div className="control-list">{data.warehouses.map((item) => <article key={item.id}>
+      {renaming === item.id
+        ? <form className="control-inline-rename" onSubmit={(event) => { event.preventDefault(); const name = String(new FormData(event.currentTarget).get('name') ?? '').trim(); if (name) run(() => renameWarehouse(item.id, name)); setRenaming(null) }}>
+            <input name="name" defaultValue={item.name} autoFocus required maxLength={200} />
+            <Button type="submit" variant="quiet" disabled={busy}>Guardar</Button>
+            <Button type="button" variant="quiet" onClick={() => setRenaming(null)}>Cancelar</Button>
+          </form>
+        : <span><strong>{item.code} · {item.name}</strong><small>{item.isDefault ? 'Predeterminada' : item.active ? 'Activa' : 'Inactiva'}</small></span>}
+      {renaming !== item.id ? <div className="control-list-actions">
+        <Button type="button" variant="quiet" onClick={() => setRenaming(item.id)}>Renombrar</Button>
+        {!item.isDefault ? <Button type="button" variant="quiet" onClick={() => run(() => setDefaultWarehouse(item.id))}>Usar por defecto</Button> : null}
+        {!item.isDefault ? <Button type="button" variant="quiet" onClick={() => run(() => setWarehouseActive(item.id, !item.active))}>{item.active ? 'Desactivar' : 'Activar'}</Button> : null}
+      </div> : null}
+    </article>)}</div>
+  </> }
 
 function PeriodManager({ data, busy, run }: ManagerProps) { return <><form className="control-inline control-inline--period" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run(() => createAccountingPeriod({ name: String(form.get('name')), startsOn: String(form.get('startsOn')), endsOn: String(form.get('endsOn')) })); event.currentTarget.reset() }}><label className="field">Nombre<input name="name" placeholder="Octubre 2026" required /></label><label className="field">Desde<input name="startsOn" type="date" required /></label><label className="field">Hasta<input name="endsOn" type="date" required /></label><Button type="submit" disabled={busy}>Crear periodo</Button></form><div className="control-list">{data.periods.map((item) => <article key={item.id}><span><strong>{item.name}</strong><small>{item.startsOn} — {item.endsOn} · {item.status === 'open' ? 'Abierto' : 'Cerrado'}</small></span><Button type="button" variant="quiet" onClick={() => run(() => setAccountingPeriodStatus(item.id, item.status === 'open' ? 'closed' : 'open', item.status === 'closed' ? 'Reapertura administrativa' : undefined))}>{item.status === 'open' ? 'Cerrar' : 'Reabrir'}</Button></article>)}</div></> }
 

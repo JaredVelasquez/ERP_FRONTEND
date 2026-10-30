@@ -7,7 +7,8 @@ import { TextField } from '@/shared/ui/fields'
 import { Form, FormActions, FormDialog, FormNotice, FormSection } from '@/shared/ui/form-layout'
 import { PageIntro } from '@/shared/ui/ops'
 import { ServerTable } from '@/shared/ui/server-table'
-import { createBarcodeSheet, createCatalogProduct, listCatalog } from '../api'
+import type { RowAction } from '@/shared/ui/row-actions-menu'
+import { createBarcodeSheet, createCatalogProduct, listCatalog, setProductCostingMethod, type CatalogProduct } from '../api'
 import { productMessages } from '../messages'
 
 const productColumns = [
@@ -23,7 +24,7 @@ const productColumns = [
 ] as const
 
 export function ProductsPage() {
-  const { companyId } = useSession()
+  const { companyId, grants } = useSession()
   const queryClient = useQueryClient()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -34,6 +35,44 @@ export function ProductsPage() {
   const [barcodeBusy, setBarcodeBusy] = useState(false)
   const [itemType, setItemType] = useState<'product' | 'service'>('product')
   const { report, ready } = useFieldSet(['name', 'factor'])
+  const catalogRef = useRef(new Map<string, CatalogProduct>())
+  const costingDialogRef = useRef<HTMLDialogElement>(null)
+  const [costingProduct, setCostingProduct] = useState<CatalogProduct | null>(null)
+  const [costingBusy, setCostingBusy] = useState(false)
+  const [costingNotice, setCostingNotice] = useState<string | null>(null)
+  const canEditInventory = grants?.some((grant) => grant.module === 'inventory' && grant.access === 'edit') ?? false
+
+  function openCosting(id: string) {
+    const product = catalogRef.current.get(id)
+    if (!product) return
+    setCostingProduct(product)
+    setCostingNotice(null)
+    costingDialogRef.current?.showModal()
+  }
+
+  async function saveCosting(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!costingProduct) return
+    const data = new FormData(event.currentTarget)
+    const method = parseCostingMethod(String(data.get('costingMethod') ?? ''))
+    const reason = String(data.get('reason') ?? '').trim()
+    if (reason === '') {
+      setCostingNotice('Escribe el motivo del cambio.')
+      return
+    }
+    setCostingBusy(true)
+    setCostingNotice(null)
+    try {
+      await setProductCostingMethod(costingProduct.id, method, reason)
+      await queryClient.invalidateQueries({ queryKey: ['products', companyId] })
+      costingDialogRef.current?.close()
+      setCostingProduct(null)
+    } catch (error) {
+      setCostingNotice(error instanceof Error ? error.message : 'No se pudo cambiar el método de costeo.')
+    } finally {
+      setCostingBusy(false)
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -123,12 +162,19 @@ export function ProductsPage() {
             {barcodeBusy ? 'Generando…' : productMessages.downloadBarcodeSheet}
           </Button>
         </div> : null}
-        rowActions={(id) => [{
-          label: selectedProducts.includes(id) ? productMessages.removeFromBarcodeSheet : productMessages.addToBarcodeSheet,
-          onSelect: () => setSelectedProducts((current) => current.includes(id)
-            ? current.filter((selectedId) => selectedId !== id)
-            : [...current, id]),
-        }]}
+        rowActions={(id) => {
+          const row = catalogRef.current.get(id)
+          const actions: RowAction[] = [{
+            label: selectedProducts.includes(id) ? productMessages.removeFromBarcodeSheet : productMessages.addToBarcodeSheet,
+            onSelect: () => setSelectedProducts((current) => current.includes(id)
+              ? current.filter((selectedId) => selectedId !== id)
+              : [...current, id]),
+          }]
+          if (row?.itemType === 'product' && canEditInventory) {
+            actions.push({ label: 'Cambiar método de costeo', onSelect: () => openCosting(id) })
+          }
+          return actions
+        }}
         load={async (query) => {
           const page = await listCatalog(companyId ?? '', {
             page: query.page,
@@ -137,6 +183,7 @@ export function ProductsPage() {
             sort: sortParam(query.sort),
             itemType: 'all',
           })
+          for (const row of page.items) catalogRef.current.set(row.id, row)
           return {
             ...page,
             items: page.items.map((row) => ({
@@ -229,6 +276,33 @@ export function ProductsPage() {
           </FormActions>
           {notice ? <FormNotice>{notice}</FormNotice> : null}
         </Form>
+      </FormDialog>
+      <FormDialog dialogRef={costingDialogRef} title="Método de costeo" titleId="costing-method-title">
+        {costingProduct ? <Form key={costingProduct.id} onSubmit={(event) => void saveCosting(event)}>
+          <FormSection title={costingProduct.name} hint="El cambio se rechaza si el producto tiene existencia en alguna bodega.">
+            <label className="field" htmlFor="costing-method-select">
+              <span>Método de salida</span>
+              <select id="costing-method-select" name="costingMethod" defaultValue={costingProduct.costingMethod ?? ''}>
+                <option value="">Usar el método predeterminado de la empresa</option>
+                <option value="PEPS">PEPS · primero en entrar, primero en salir</option>
+                <option value="UEPS">UEPS · último en entrar, primero en salir</option>
+                <option value="FEFO">FEFO · vence primero, primero en salir</option>
+                <option value="AVERAGE">Costo promedio</option>
+                <option value="SPECIFIC">Identificación específica de lote</option>
+              </select>
+            </label>
+            <TextField id="costing-method-reason" name="reason" label="Motivo del cambio" wide required />
+          </FormSection>
+          <FormActions>
+            <Button type="button" variant="quiet" onClick={() => costingDialogRef.current?.close()}>
+              {productMessages.close}
+            </Button>
+            <Button type="submit" disabled={costingBusy}>
+              {costingBusy ? 'Guardando…' : 'Guardar método'}
+            </Button>
+          </FormActions>
+          {costingNotice ? <FormNotice>{costingNotice}</FormNotice> : null}
+        </Form> : null}
       </FormDialog>
     </div>
   )

@@ -81,6 +81,9 @@
 .control-list article span { display: grid; min-width: 0; gap: .15rem; }
 .control-list article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .control-list article small { color: var(--text-muted); }
+.control-list-actions { display: flex; flex-wrap: wrap; gap: .5rem; flex-shrink: 0; }
+.control-inline-rename { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+.control-inline-rename input { flex: 1; min-width: 120px; }
 .control-metric { margin: 1rem 0 0; color: var(--text-muted); }
 .control-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; padding-top: 1rem; }
 .control-summary span { display: grid; gap: .2rem; padding: .75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); }

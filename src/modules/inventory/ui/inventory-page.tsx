@@ -4,6 +4,7 @@ import { PageIntro } from '@/shared/ui/ops'
 import { ServerTable } from '@/shared/ui/server-table'
 import { listInventoryDocuments } from '../api'
 import { inventoryMessages } from '../messages'
+import { WarehouseTransferPanel } from './warehouse-transfer-panel'
 
 const documentColumns = [
   { key: 'type', label: 'Tipo' },
@@ -17,6 +18,7 @@ export function InventoryPage() {
   return (
     <div className="ops-page inventory-page">
       <PageIntro title={inventoryMessages.title} description={inventoryMessages.description} action={<Link className="ui-button ui-button--primary" to="/operations">{inventoryMessages.scan} <span aria-hidden="true">↗</span></Link>} />
+      <WarehouseTransferPanel />
       <ServerTable
         tableKey="inventory-documents"
         companyId={companyId}

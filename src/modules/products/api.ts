@@ -15,6 +15,7 @@ export interface CatalogProduct {
   factor: string
   salePrice: string
   stock: string
+  costingMethod: ProductCostingMethod | null
 }
 
 export interface CatalogPresentation {
@@ -129,8 +130,26 @@ function readProduct(value: unknown): CatalogProduct[] {
       factor: presentation.factor,
       salePrice: presentation.salePrice,
       stock: '0',
+      costingMethod: readCostingMethod(value.costingMethod),
     },
   ]
+}
+
+function readCostingMethod(value: unknown): ProductCostingMethod | null {
+  return value === 'PEPS' || value === 'UEPS' || value === 'FEFO' || value === 'AVERAGE' || value === 'SPECIFIC' ? value : null
+}
+
+export async function setProductCostingMethod(productId: string, costingMethod: ProductCostingMethod | null, reason: string): Promise<void> {
+  const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/products/${encodeURIComponent(productId)}/costing-method`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ costingMethod, reason }),
+  })
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null)
+    throw new Error(isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'No se pudo cambiar el método de costeo.')
+  }
 }
 
 function numberOf(value: unknown, fallback: number): number {

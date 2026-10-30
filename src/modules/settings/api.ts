@@ -94,6 +94,14 @@ export async function setDefaultWarehouse(id: string): Promise<void> {
   await request(`/erp/company-controls/warehouses/${encodeURIComponent(id)}/default`, 'PUT', {})
 }
 
+export async function renameWarehouse(id: string, name: string): Promise<void> {
+  await request(`/erp/company-controls/warehouses/${encodeURIComponent(id)}`, 'PUT', { name })
+}
+
+export async function setWarehouseActive(id: string, active: boolean): Promise<void> {
+  await request(`/erp/company-controls/warehouses/${encodeURIComponent(id)}/active`, 'PUT', { active })
+}
+
 export async function createAccountingPeriod(input: { name: string; startsOn: string; endsOn: string }): Promise<void> {
   await request('/erp/company-controls/periods', 'POST', input)
 }
