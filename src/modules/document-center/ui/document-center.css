@@ -57,6 +57,7 @@
 .dc-document-row span:last-child { text-align: right; }
 .dc-document-row small, .dc-template-version span { color: #73849a; font-size: .78rem; }
 .dc-preview-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .5rem 0 1rem; color: #718198; font-size: .88rem; }
+body:has(dialog.dc-preview-dialog[open]) { overflow: hidden; }
 .dc-preview-dialog { width: min(1180px, calc(100vw - 32px)); max-width: 1180px; height: min(94dvh, 1000px); max-height: 94dvh; margin: auto; padding: 0; overflow: hidden; color: var(--text); background: var(--surface-muted); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 28px 90px rgb(7 22 51 / 28%); opacity: 1; transform: scale(1) translateY(0); transition: opacity .22s ease, transform .22s cubic-bezier(.2, .9, .3, 1.1), display .22s allow-discrete, overlay .22s allow-discrete; }
 .dc-preview-dialog::backdrop { background: rgb(7 22 51 / 68%); backdrop-filter: blur(4px); transition: background-color .22s ease, backdrop-filter .22s ease; }
 @starting-style {

@@ -10,6 +10,7 @@ import { ItemPickerResults } from '@/shared/ui/item-picker-results'
 import { listCatalog, type CatalogPresentation, type CatalogProduct } from '@/modules/products/api'
 import { createBusinessDocument, documentTypes, listBusinessDocuments, listTemplates, type BusinessDocument, type DocumentTemplate, type DocumentType } from '../api'
 import type { TemplateCanvasData } from '../types'
+import { printTemplatePreview } from './html-template'
 import { TemplateCanvasPreview, type TemplateRenderContext } from './template-canvas'
 import './document-center.css'
 
@@ -206,7 +207,7 @@ function DocumentPreview({ document, companyName, companyLogoUrl, onClose }: { d
         ? <TemplateCanvasPreview data={template.layoutDefinition} context={documentRenderContext(snapshot, displayedCompanyName, resolvedLogoUrl)} />
         : <LegacyDocumentLayout document={document} displayedCompanyName={displayedCompanyName} resolvedLogoUrl={resolvedLogoUrl} />}
       </article></div>
-      <footer className="dc-preview-dialog__footer"><span><strong>Documento listo para consultar</strong><small>La impresión utiliza el tamaño y orientación configurados en la plantilla.</small></span><div className="dc-preview-confirm__actions"><Button type="button" variant="quiet" onClick={() => dialogRef.current?.close()}>Cerrar</Button><Button type="button" onClick={() => window.print()}>Imprimir / Guardar PDF</Button></div></footer>
+      <footer className="dc-preview-dialog__footer"><span><strong>Documento listo para consultar</strong><small>La impresión utiliza el tamaño y orientación configurados en la plantilla.</small></span><div className="dc-preview-confirm__actions"><Button type="button" variant="quiet" onClick={() => dialogRef.current?.close()}>Cerrar</Button><Button type="button" onClick={() => printTemplatePreview(dialogRef.current, template.pageSize, template.orientation)}>Imprimir / Guardar PDF</Button></div></footer>
     </div>
   </dialog>
 }

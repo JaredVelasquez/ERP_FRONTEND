@@ -1,5 +1,6 @@
 export { DocumentCenterPage } from './ui/document-center-page'
 export { DocumentFormatPreview } from './ui/document-format-preview'
+export { printTemplatePreview } from './ui/html-template'
 export { TemplatesPage } from './ui/templates-page'
 export type { DocumentType } from './api'
 export type { PrintableDocumentType } from './ui/document-format-preview'

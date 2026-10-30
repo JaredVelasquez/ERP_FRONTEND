@@ -108,6 +108,23 @@ export function HtmlTemplateFrame({ html, context }: { html: string; context: Te
   return <iframe className="dc-html-template-frame" title="Vista previa del formato HTML" sandbox="allow-modals" referrerPolicy="no-referrer" srcDoc={renderSafeHtmlTemplate(html, context)} />
 }
 
+// The custom HTML template renders inside a sandboxed iframe (isolated document, its own
+// CSP) so the outer page's "hide everything but the paper" print trick never reaches its
+// content: printing the outer window leaves that iframe blank. Printing the iframe's own
+// window instead prints exactly its document, using whatever @page rule we set on it.
+export function printTemplatePreview(container: HTMLElement | null, pageSize: string, orientation: string): void {
+  const frame = container?.querySelector<HTMLIFrameElement>('iframe.dc-html-template-frame')
+  const frameDocument = frame?.contentDocument
+  if (frame?.contentWindow && frameDocument) {
+    const pageStyle = frameDocument.createElement('style')
+    pageStyle.textContent = `@page { size: ${pageSize} ${orientation}; margin: 0; }`
+    frameDocument.head.appendChild(pageStyle)
+    frame.contentWindow.print()
+    return
+  }
+  window.print()
+}
+
 function allowedLogoOrigin(value: string | null): string {
   if (value === null) return ''
   try {

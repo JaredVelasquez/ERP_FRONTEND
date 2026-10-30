@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import '@/modules/document-center/ui/document-center.css'
+import { printTemplatePreview } from '@/modules/document-center'
 import { useSession } from '@/app/providers/session'
 import { Button } from '@/shared/ui/button'
 import { IconAction } from '@/shared/ui/icon-action'
@@ -147,7 +148,7 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
             <span><strong>{selectedDocument ? 'Documento listo para consultar' : 'Revisión obligatoria'}</strong><small>La impresión usa el tamaño y orientación configurados en la plantilla.</small></span>
             <div className="dc-preview-confirm__actions">
               <Button type="button" variant="quiet" onClick={() => reviewDialogRef.current?.close()}>Cerrar</Button>
-              {selectedDocument ? <Button type="button" onClick={() => window.print()}>Imprimir / guardar PDF</Button> : <Button type="button" disabled={issue.isPending} onClick={() => selectedSale && issue.mutate(selectedSale.id)}>{issue.isPending ? 'Emitiendo…' : 'Confirmar y emitir factura'}</Button>}
+              {selectedDocument ? <Button type="button" onClick={() => printTemplatePreview(reviewDialogRef.current, 'A4', 'portrait')}>Imprimir / guardar PDF</Button> : <Button type="button" disabled={issue.isPending} onClick={() => selectedSale && issue.mutate(selectedSale.id)}>{issue.isPending ? 'Emitiendo…' : 'Confirmar y emitir factura'}</Button>}
             </div>
           </footer>
         </div>
@@ -179,7 +180,7 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
         </div></div>
         <footer className="dc-preview-dialog__footer">
           <span><strong>Documento listo para consultar</strong><small>La impresión usa el tamaño y orientación configurados en la plantilla.</small></span>
-          <div className="dc-preview-confirm__actions"><Button type="button" variant="quiet" onClick={() => historyDialogRef.current?.close()}>Cerrar</Button><Button type="button" onClick={() => window.print()}>Imprimir / guardar PDF</Button></div>
+          <div className="dc-preview-confirm__actions"><Button type="button" variant="quiet" onClick={() => historyDialogRef.current?.close()}>Cerrar</Button><Button type="button" onClick={() => printTemplatePreview(historyDialogRef.current, 'A4', 'portrait')}>Imprimir / guardar PDF</Button></div>
         </footer>
       </div>
     </dialog>

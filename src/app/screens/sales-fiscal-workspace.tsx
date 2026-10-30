@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useSession } from '@/app/providers/session'
 import { visibleModules } from '@/modules/access'
 import { DocumentCenterPage, DocumentFormatPreview, type DocumentType } from '@/modules/document-center'
@@ -33,13 +33,7 @@ export function SalesFiscalWorkspace() {
   })
   const [activeCategory, setActiveCategory] = useState<WorkspaceCategory>(() => initialCategory(location.pathname, categories))
   const [pendingFiscalSaleId, setPendingFiscalSaleId] = useState<string | null>(null)
-  const inlineFiscalRef = useRef<HTMLDivElement>(null)
   const activeCopy = categoryCopy[activeCategory]
-
-  useEffect(() => {
-    if (pendingFiscalSaleId === null || activeCategory !== 'inventory') return
-    inlineFiscalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [activeCategory, pendingFiscalSaleId])
 
   async function movementPosted(document: { id: string; type: string }, prepareInvoice: boolean): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: ['fiscal-sandbox', 'eligible-sales'] })
@@ -60,7 +54,7 @@ export function SalesFiscalWorkspace() {
       {activeCategory === 'inventory' ? <>
         {paymentConfiguration.isError ? <p className="form-alert" role="alert">No se cargaron métodos de pago. <Link to="/settings/payments">Revisar configuración</Link></p> : null}
         <ScanPage embedded paymentMethods={paymentConfiguration.data?.settings.paymentMethods ?? []} onMovementPosted={(document, prepareInvoice) => { void movementPosted(document, prepareInvoice) }} />
-        {pendingFiscalSaleId ? <div ref={inlineFiscalRef} className="operations-inline-fiscal"><FiscalPage embedded initialSaleId={pendingFiscalSaleId} focusSaleOnly renderDocument={renderFiscalDocument} onDismiss={() => setPendingFiscalSaleId(null)} /></div> : null}
+        {pendingFiscalSaleId ? <div className="operations-inline-fiscal"><FiscalPage embedded initialSaleId={pendingFiscalSaleId} focusSaleOnly renderDocument={renderFiscalDocument} onDismiss={() => setPendingFiscalSaleId(null)} /></div> : null}
       </> : null}
       {activeCategory === 'fiscal' ? <FiscalPage embedded initialSaleId={pendingFiscalSaleId} renderDocument={renderFiscalDocument} /> : null}
       {activeCopy.types.length > 0 ? <DocumentCenterPage key={activeCategory} embedded allowedTypes={activeCopy.types} initialType={activeCopy.types[0]} /> : null}
