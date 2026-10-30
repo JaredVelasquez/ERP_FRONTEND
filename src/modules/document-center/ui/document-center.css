@@ -57,8 +57,12 @@
 .dc-document-row span:last-child { text-align: right; }
 .dc-document-row small, .dc-template-version span { color: #73849a; font-size: .78rem; }
 .dc-preview-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .5rem 0 1rem; color: #718198; font-size: .88rem; }
-.dc-preview-dialog { width: min(1180px, calc(100vw - 32px)); max-width: 1180px; height: min(94dvh, 1000px); max-height: 94dvh; margin: auto; padding: 0; overflow: hidden; color: var(--text); background: var(--surface-muted); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 28px 90px rgb(7 22 51 / 28%); }
-.dc-preview-dialog::backdrop { background: rgb(7 22 51 / 68%); backdrop-filter: blur(4px); }
+.dc-preview-dialog { width: min(1180px, calc(100vw - 32px)); max-width: 1180px; height: min(94dvh, 1000px); max-height: 94dvh; margin: auto; padding: 0; overflow: hidden; color: var(--text); background: var(--surface-muted); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 28px 90px rgb(7 22 51 / 28%); opacity: 1; transform: scale(1) translateY(0); transition: opacity .22s ease, transform .22s cubic-bezier(.2, .9, .3, 1.1), display .22s allow-discrete, overlay .22s allow-discrete; }
+.dc-preview-dialog::backdrop { background: rgb(7 22 51 / 68%); backdrop-filter: blur(4px); transition: background-color .22s ease, backdrop-filter .22s ease; }
+@starting-style {
+  .dc-preview-dialog[open] { opacity: 0; transform: scale(.96) translateY(10px); }
+  .dc-preview-dialog[open]::backdrop { background-color: transparent; backdrop-filter: blur(0); }
+}
 .dc-preview-dialog__shell { display: grid; height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
 .dc-preview-dialog__header, .dc-preview-dialog__footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: var(--surface); }
 .dc-preview-dialog__header { border-bottom: 1px solid var(--border); }
@@ -181,7 +185,19 @@
 @media (max-width: 900px) { .dc-layout, .dc-template-layout { grid-template-columns: 1fr; } .dc-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .dc-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; } .dc-type-card { min-width: 0; min-height: 68px; padding: .7rem; font-size: .88rem; } .dc-operation-progress { grid-template-columns: 1fr; } .dc-operation-progress li + li { border-top: 1px solid var(--border); border-left: 0; } .dc-fields-two { grid-template-columns: 1fr; } .dc-line-editor { grid-template-columns: 1fr 85px; } .dc-line-editor .field:first-child { grid-column: 1 / -1; } .dc-paper { min-height: 225mm; padding: 9mm; } .dc-paper-header { grid-template-columns: 44px 1fr; gap: .55rem; } .dc-paper-header img, .dc-logo-fallback { width: 42px; height: 42px; } .dc-paper-header strong { font-size: 1.1rem; } .dc-paper-header aside { grid-column: 2; justify-items: start; } .dc-paper-table { font-size: .72rem; } .dc-paper-table th, .dc-paper-table td { padding: .48rem .25rem; } .dc-preview-actions, .dc-template-version, .dc-preview-dialog__header, .dc-preview-dialog__footer, .dc-preview-confirm__actions { align-items: stretch; flex-direction: column; } .dc-preview-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; } .dc-preview-dialog__header { position: relative; padding-right: 3.75rem; } .dc-preview-dialog__header .icon-action { position: absolute; top: .75rem; right: .75rem; } .dc-preview-dialog__viewport { padding: .65rem; } .dc-preview-confirm__actions .ui-button { width: 100%; } }
 @media (max-width: 700px) { .dc-document-line { grid-template-columns: minmax(0, 1fr) 78px 32px; } .dc-document-line-name { grid-column: 1 / -1; } .dc-document-line-price { grid-column: 1 / 3; } .dc-document-line .field { min-width: 0; } .dc-catalog-result { align-items: flex-start; flex-direction: column; } }
-@media print { body * { visibility: hidden !important; } .dc-paper, .dc-paper * { visibility: visible !important; } .dc-paper { position: absolute; inset: 0; width: 100%; min-height: auto; margin: 0; border: 0; box-shadow: none; page-break-after: avoid; } }
+@media print {
+  body * { visibility: hidden !important; }
+  .dc-paper, .dc-paper * { visibility: visible !important; }
+  /* .dc-paper lives inside dialog > __shell > __viewport, which clips and scrolls its content.
+     Rather than let .dc-paper escape via position: absolute (which a scrollable ancestor still
+     clips), every ancestor container gets out of the way so the paper prints in normal flow. */
+  dialog.dc-preview-dialog[open] { position: static; overflow: visible; width: auto; height: auto; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  .dc-preview-dialog::backdrop { display: none; }
+  .dc-preview-dialog__shell { display: block; }
+  .dc-preview-dialog__header, .dc-preview-dialog__footer { display: none !important; }
+  .dc-preview-dialog__viewport { overflow: visible; padding: 0; }
+  .dc-paper { position: static; width: 100%; min-height: auto; margin: 0; border: 0; box-shadow: none; page-break-after: avoid; }
+}
 .dc-builder-screen .puck { --puck-color-primary: var(--brand); }
 .dc-builder-mode { display: flex; width: fit-content; gap: 3px; margin-top: 6px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
 .dc-builder-mode button { min-height: 32px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: .78rem; font-weight: 650; cursor: pointer; }

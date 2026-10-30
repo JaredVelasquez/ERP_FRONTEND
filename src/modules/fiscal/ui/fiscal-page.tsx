@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import '@/modules/document-center/ui/document-center.css'
 import { useSession } from '@/app/providers/session'
 import { Button } from '@/shared/ui/button'
 import { IconAction } from '@/shared/ui/icon-action'
@@ -46,6 +47,17 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
   const sales = useQuery({ queryKey: ['fiscal-sandbox', 'eligible-sales'], queryFn: listEligibleSandboxSales })
   const documents = useQuery({ queryKey: ['fiscal-sandbox', 'documents'], queryFn: listSandboxFiscalDocuments })
   const selectedSale = sales.data?.find((sale) => sale.id === selectedSaleId) ?? null
+  const reviewDialogRef = useRef<HTMLDialogElement>(null)
+  const historyDialogRef = useRef<HTMLDialogElement>(null)
+  const reviewing = view === 'pending' || focusSaleOnly
+
+  useEffect(() => {
+    if (reviewing && (selectedSale || selectedDocument)) reviewDialogRef.current?.showModal()
+  }, [reviewing, selectedSale, selectedDocument])
+
+  useEffect(() => {
+    if (!reviewing && selectedDocument) historyDialogRef.current?.showModal()
+  }, [reviewing, selectedDocument])
 
   useEffect(() => {
     if (initialSaleId && sales.data?.some((sale) => sale.id === initialSaleId)) {
@@ -108,16 +120,31 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
         <div className="fiscal-preview-toolbar">
           <div><strong>{selectedDocument ? `Factura ${selectedDocument.documentNumber}` : 'Vista previa con datos reales de la venta'}</strong><small>{selectedDocument ? 'El correlativo y la autorización ya fueron reservados.' : 'Revisar no consume correlativo, CAI ni modifica inventario.'}</small></div>
           <div className="fiscal-preview-toolbar__actions">
-            {selectedDocument ? <Button type="button" variant="quiet" onClick={() => window.print()}>Imprimir / guardar PDF</Button> : null}
+            <Button type="button" variant="quiet" onClick={() => reviewDialogRef.current?.showModal()}>Ver vista previa</Button>
             {!selectedDocument ? <Button type="button" disabled={issue.isPending} onClick={() => selectedSale && issue.mutate(selectedSale.id)}>{issue.isPending ? 'Emitiendo…' : 'Confirmar y emitir factura'}</Button> : null}
           </div>
-        </div>
-        <div className="fiscal-document-canvas">
-          {renderDocument ? renderDocument(previewModel, watermark) : <FallbackPreview document={previewModel} watermark={watermark} />}
         </div>
         {issue.isError ? <p className="form-alert" role="alert">{issue.error.message}</p> : null}
         {selectedDocument ? <div className="fiscal-success" role="status"><strong>Factura emitida correctamente</strong><span>La venta quedó vinculada al documento {selectedDocument.documentNumber}.</span></div> : null}
       </Panel> : null}
+      <dialog ref={reviewDialogRef} className="dc-preview-dialog" aria-labelledby="fiscal-review-title">
+        <div className="dc-preview-dialog__shell">
+          <header className="dc-preview-dialog__header">
+            <div><h2 id="fiscal-review-title">{selectedDocument ? `Factura ${selectedDocument.documentNumber}` : 'Vista previa con datos reales de la venta'}</h2><p>{selectedDocument ? 'El correlativo y la autorización ya fueron reservados.' : 'Revisar no consume correlativo, CAI ni modifica inventario.'}</p></div>
+            <IconAction icon="close" label="Cerrar vista previa" onClick={() => reviewDialogRef.current?.close()} />
+          </header>
+          <div className="dc-preview-dialog__viewport"><style>{`@media print { @page { size: A4 portrait; margin: 0; } }`}</style><div className="fiscal-document-canvas">
+            {previewModel ? (renderDocument ? renderDocument(previewModel, watermark) : <FallbackPreview document={previewModel} watermark={watermark} />) : null}
+          </div></div>
+          <footer className="dc-preview-dialog__footer">
+            <span><strong>{selectedDocument ? 'Documento listo para consultar' : 'Revisión obligatoria'}</strong><small>La impresión usa el tamaño y orientación configurados en la plantilla.</small></span>
+            <div className="dc-preview-confirm__actions">
+              <Button type="button" variant="quiet" onClick={() => reviewDialogRef.current?.close()}>Cerrar</Button>
+              {selectedDocument ? <Button type="button" onClick={() => window.print()}>Imprimir / guardar PDF</Button> : <Button type="button" disabled={issue.isPending} onClick={() => selectedSale && issue.mutate(selectedSale.id)}>{issue.isPending ? 'Emitiendo…' : 'Confirmar y emitir factura'}</Button>}
+            </div>
+          </footer>
+        </div>
+      </dialog>
 
       {!sales.isPending && selectedSale === null && selectedDocument === null ? <Panel title="Factura pendiente"><p className="fiscal-empty">La venta ya fue procesada o dejó de estar disponible. Selecciona otra venta pendiente.</p></Panel> : null}
     </section> : null}
@@ -130,11 +157,25 @@ export function FiscalPage({ embedded = false, initialSaleId = null, focusSaleOn
         <thead><tr><th>Número</th><th>Emisión</th><th>CAI / autorización</th><th>Total</th><th aria-label="Acciones" /></tr></thead>
         <tbody>{documents.data.map((document) => <tr key={document.id} aria-selected={selectedDocument?.id === document.id}>
           <td><strong>{document.documentNumber}</strong><small>NO VÁLIDO</small></td><td>{date.format(new Date(document.issuedAt))}</td><td>{document.authorizationCode}</td><td>{money.format(document.total)}</td>
-          <td><IconAction icon="preview" label={`Ver documento ${document.documentNumber}`} onClick={() => setSelectedDocument(document)} /></td>
+          <td><IconAction icon="preview" label={`Ver documento ${document.documentNumber}`} onClick={() => { setSelectedDocument(document); historyDialogRef.current?.showModal() }} /></td>
         </tr>)}</tbody>
       </table></div> : null}
-      {selectedDocument ? <div className="fiscal-history-preview"><div className="fiscal-preview-toolbar"><div><strong>{selectedDocument.documentNumber}</strong><small>Documento emitido · snapshot histórico</small></div><div className="fiscal-preview-toolbar__actions"><Button type="button" variant="quiet" onClick={() => window.print()}>Imprimir / guardar PDF</Button><IconAction icon="close" label="Cerrar vista previa" onClick={() => setSelectedDocument(null)} /></div></div><div className="fiscal-document-canvas">{renderDocument ? renderDocument(documentPreviewModel(selectedDocument, logoUrl), 'DOCUMENTO FICTICIO · NO VÁLIDO FISCALMENTE') : <FallbackPreview document={documentPreviewModel(selectedDocument, logoUrl)} watermark="DOCUMENTO FICTICIO · NO VÁLIDO FISCALMENTE" />}</div></div> : null}
     </Panel> : null}
+    <dialog ref={historyDialogRef} className="dc-preview-dialog" aria-labelledby="fiscal-history-title" onClose={() => setSelectedDocument(null)}>
+      <div className="dc-preview-dialog__shell">
+        <header className="dc-preview-dialog__header">
+          <div><h2 id="fiscal-history-title">{selectedDocument?.documentNumber}</h2><p>Documento emitido · snapshot histórico</p></div>
+          <IconAction icon="close" label="Cerrar vista previa" onClick={() => historyDialogRef.current?.close()} />
+        </header>
+        <div className="dc-preview-dialog__viewport"><style>{`@media print { @page { size: A4 portrait; margin: 0; } }`}</style><div className="fiscal-document-canvas">
+          {selectedDocument ? (renderDocument ? renderDocument(documentPreviewModel(selectedDocument, logoUrl), 'DOCUMENTO FICTICIO · NO VÁLIDO FISCALMENTE') : <FallbackPreview document={documentPreviewModel(selectedDocument, logoUrl)} watermark="DOCUMENTO FICTICIO · NO VÁLIDO FISCALMENTE" />) : null}
+        </div></div>
+        <footer className="dc-preview-dialog__footer">
+          <span><strong>Documento listo para consultar</strong><small>La impresión usa el tamaño y orientación configurados en la plantilla.</small></span>
+          <div className="dc-preview-confirm__actions"><Button type="button" variant="quiet" onClick={() => historyDialogRef.current?.close()}>Cerrar</Button><Button type="button" onClick={() => window.print()}>Imprimir / guardar PDF</Button></div>
+        </footer>
+      </div>
+    </dialog>
   </Element>
 }
 

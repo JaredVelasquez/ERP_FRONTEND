@@ -1035,19 +1035,6 @@ body { background: var(--canvas); }
   .fiscal-preview__actions { justify-content: flex-start; }
   .fiscal-issue-button { white-space: normal; }
 }
-@media print {
-  @page fiscal-a4 { size: A4 portrait; margin: 14mm; }
-  body:has(.fiscal-document-preview) * { visibility: hidden; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview,
-  body:has(.fiscal-document-preview) .fiscal-document-preview * { visibility: visible; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview { page: fiscal-a4; position: absolute; inset: 0; width: 100%; padding: 0; border: 0; box-shadow: none; color: #14283d; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview .table-scroll { overflow: visible; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview .fiscal-preview__lines { width: 100%; border-collapse: collapse; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview .fiscal-preview__lines th,
-  body:has(.fiscal-document-preview) .fiscal-document-preview .fiscal-preview__lines td { padding: 7px 5px; border-bottom: 1px solid #cbd6df; color: #14283d; font-size: 9pt; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview .fiscal-preview__watermark { color: #14283d; }
-  body:has(.fiscal-document-preview) .fiscal-document-preview .fiscal-preview__actions { display: none; }
-}
 .voucher-pos-receipt { grid-column: 1 / -1; display: grid; gap: 9px; padding: 14px; border: 1px dashed #a9c5dc; border-radius: 11px; background: #f7fbff; color: var(--text); font-size: .83rem; font-weight: 700; }
 .voucher-pos-receipt small { display: block; margin-top: 4px; color: var(--text-muted); font-size: .74rem; font-weight: 450; }
 .voucher-pos-receipt input { max-width: 100%; color: var(--text-muted); font: inherit; font-size: .76rem; }
