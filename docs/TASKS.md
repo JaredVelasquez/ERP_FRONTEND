@@ -133,3 +133,20 @@ Puntero a `ERP_Backend/docs/TASKS.md` T-018–T-029 y a SPEC § 12. No se adelan
 - **Alcance:** configuración fiscal disponible según permisos; consulta de documentos por estado y período; flujo para emitir desde una venta elegible; vista previa e impresión; detalle de impuestos y datos fiscales; consulta de notas de crédito/débito y anulaciones; mensajes claros ante correlativos agotados, autorización vencida o errores de emisión.
 - **Regla:** distinguir visualmente los documentos fiscales de los comprobantes operativos actuales y no presentar como factura ningún comprobante que no haya sido emitido/autorizado por el flujo fiscal.
 - **Listo cuando:** los flujos usan exclusivamente datos del backend, respetan empresa/permisos, conservan acceso al documento emitido, y la interfaz responde en móvil y escritorio con estados de carga, vacío, error y confirmación.
+### Actualización de desarrollo (2026-10-27)
+- T-F016 está parcial: existe `/fiscal` para consultar ventas elegibles, generar un documento fiscal ficticio desde una venta confirmada, ver el snapshot e imprimir una vista claramente `NO VÁLIDO FISCALMENTE`. No sustituye la emisión legal ni incluye todavía edición de plantillas.
+- **Verificado en Chrome:** login/refresh HttpOnly, dashboard a 390px y arrastre de columnas en Productos; la previsualización conserva el ancho del encabezado seleccionado y no queda desplazada. La suite frontend pasó (15 archivos, 35 tests).
+
+## T-F017 — Formularios y plantillas para documentos comerciales/fiscales
+- **Estado:** [ ] pendiente.
+- **Deps:** backend T-045, T-051, T-052, T-053 y T-055.
+- **Alcance:** crear, consultar y convertir cotizaciones/proformas; requisiciones, solicitudes y órdenes de compra; facturas, notas de crédito/débito, retenciones y traslados. Formularios responsive, estados/aprobaciones, vista previa A4, orientación/tamaño/márgenes configurables y editor visual de plantillas con bloques protegidos.
+- **Regla:** mostrar si el documento es borrador, propuesta, autorizado, recibido o contabilizado; no presentar cotizaciones/solicitudes como ventas ni facturas sandbox como documentos legales. La vista previa utiliza datos ficticios hasta la activación fiscal autorizada.
+- **Listo cuando:** cada formulario respeta permisos y empresa, muestra estado de guardado/error/validación, permite revisar y regenerar la representación histórica con la versión correcta de plantilla y funciona en escritorio/móvil.
+
+### Seguimiento de T-F017 (2026-10-27)
+- **Estado:** parcial verificado. Se añadieron /business-documents y Configuración > Plantillas de documentos; incluye catálogo de tipos, historial, formulario genérico con líneas/impuestos, formatos A4/Carta, logo de empresa, color/márgenes/textos, borradores/versiones publicables, previsualización y salida de impresión.
+- **Verificación:** build/lint y 15 archivos/35 pruebas frontend; Chrome recorrió 18 rutas a 390px y creó/publicó una plantilla y un documento de prueba; no reportó overflow ni excepciones.
+- **Límite visible:** la factura del centro está rotulada como no fiscal. Ciclos de aprobación y datos específicos por tipo, editor de bloques avanzado y emisión fiscal real continúan pendientes.
+
+- **Ampliación de T-F017:** acción para preparar formatos estándar A4 de todos los tipos sin publicación activa; las versiones publicadas se pueden copiar para personalizarlas. Formularios condicionales muestran los campos propios de cada documento y su vista previa conserva los vínculos y metadatos.

@@ -219,7 +219,7 @@ function moneyFigure(amount: number | undefined, failed: boolean, empty: string)
 
 function QuickActions() {
   const actions = [
-    { to: '/scan', mark: '01', title: 'Registrar movimiento', detail: 'Escanea productos para entradas o salidas.' },
+    { to: '/operations', mark: '01', title: 'Registrar movimiento', detail: 'Escanea productos para entradas o salidas.' },
     { to: '/prices', mark: '02', title: 'Revisar precios', detail: 'Consulta propuestas y precios vigentes.' },
     { to: '/documents', mark: '03', title: 'Crear comprobante', detail: 'Registra y firma un comprobante.' },
   ] as const

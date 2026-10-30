@@ -7,3 +7,6 @@ dist-electron
 .env.*
 !.env.example
 .codegraph/
+*.log
+logs/
+test-artifacts/

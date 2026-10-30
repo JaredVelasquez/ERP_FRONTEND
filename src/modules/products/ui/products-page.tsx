@@ -12,6 +12,7 @@ import { productMessages } from '../messages'
 
 const productColumns = [
   { key: 'name', label: 'Nombre' },
+  { key: 'itemType', label: 'Tipo' },
   { key: 'category', label: 'Categoría' },
   { key: 'supplier', label: 'Proveedor' },
   { key: 'presentation', label: 'Presentación' },
@@ -31,6 +32,7 @@ export function ProductsPage() {
   const [busy, setBusy] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [barcodeBusy, setBarcodeBusy] = useState(false)
+  const [itemType, setItemType] = useState<'product' | 'service'>('product')
   const { report, ready } = useFieldSet(['name', 'factor'])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -42,6 +44,11 @@ export function ProductsPage() {
     const data = new FormData(event.currentTarget)
     const priceText = String(data.get('salePrice') ?? '').trim()
     const salePrice = priceText === '' ? null : Number(priceText.replace(',', '.'))
+    const selectedItemType = data.get('itemType') === 'service' ? 'service' : 'product'
+    if (selectedItemType === 'service' && salePrice === null) {
+      setNotice('Un servicio necesita un precio de venta vigente para agregarse a documentos.')
+      return
+    }
     if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice <= 0)) {
       setNotice(productMessages.initialPriceInvalid)
       return
@@ -51,9 +58,11 @@ export function ProductsPage() {
       await createCatalogProduct({
         companyId,
         name: String(data.get('name') ?? ''),
+        itemType: selectedItemType,
         unit: String(data.get('presentation') ?? ''),
         factor: Number(String(data.get('factor') ?? '').replace(',', '.')),
         salePrice,
+        costingMethod: parseCostingMethod(String(data.get('costingMethod') ?? '')),
       })
       await queryClient.invalidateQueries({ queryKey: ['products', companyId] })
       setNotice(priceText === '' ? 'Producto guardado sin precio. Propón uno en Precios para habilitar su venta.' : productMessages.saved)
@@ -126,6 +135,7 @@ export function ProductsPage() {
             pageSize: query.pageSize,
             search: query.search,
             sort: sortParam(query.sort),
+            itemType: 'all',
           })
           return {
             ...page,
@@ -133,6 +143,7 @@ export function ProductsPage() {
               id: row.id,
               cells: {
                 name: row.name,
+                itemType: row.itemType === 'service' ? 'Servicio' : 'Producto',
                 category: row.category,
                 supplier: row.supplier,
                 presentation: row.presentation,
@@ -146,7 +157,15 @@ export function ProductsPage() {
       />
       <FormDialog dialogRef={dialogRef} title={productMessages.newProduct} titleId="new-product-title">
         <Form key={formKey} onSubmit={onSubmit}>
-          <FormSection title="Datos del producto">
+          <FormSection title="Datos del artículo">
+            <label className="field" htmlFor="product-item-type">
+              <span>Tipo de artículo</span>
+              <select id="product-item-type" name="itemType" value={itemType} onChange={(event) => setItemType(event.target.value === 'service' ? 'service' : 'product')}>
+                <option value="product">Producto con inventario</option>
+                <option value="service">Servicio sin inventario</option>
+              </select>
+              <small className="field-hint">Los servicios no aceptan movimientos de bodega.</small>
+            </label>
             <TextField
               id="product-name"
               name="name"
@@ -161,8 +180,8 @@ export function ProductsPage() {
             <TextField
               id="product-presentation"
               name="presentation"
-              label={productMessages.presentation}
-              hint={productMessages.presentationHint}
+              label={itemType === 'service' ? 'Unidad del servicio' : productMessages.presentation}
+              hint={itemType === 'service' ? 'Por ejemplo: hora, visita o servicio' : productMessages.presentationHint}
             />
             <TextField
               id="product-factor"
@@ -177,7 +196,7 @@ export function ProductsPage() {
               reveal={reveal}
               validate={factorIssue}
             />
-            <TextField
+            {itemType === 'service' ? <TextField id="product-sale-price" name="salePrice" label="Precio de venta" inputMode="decimal" required validate={priceIssue} /> : <TextField
               id="product-sale-price"
               name="salePrice"
               label={productMessages.initialPrice}
@@ -185,7 +204,19 @@ export function ProductsPage() {
               inputMode="decimal"
               reveal={reveal}
               validate={priceIssue}
-            />
+            />}
+            {itemType === 'product' ? <label className="field" htmlFor="product-costing-method">
+              <span>Método de salida</span>
+              <select id="product-costing-method" name="costingMethod" defaultValue="">
+                <option value="">Usar el método predeterminado de la empresa</option>
+                <option value="PEPS">PEPS · primero en entrar, primero en salir</option>
+                <option value="UEPS">UEPS · último en entrar, primero en salir</option>
+                <option value="FEFO">FEFO · vence primero, primero en salir</option>
+                <option value="AVERAGE">Costo promedio</option>
+                <option value="SPECIFIC">Identificación específica de lote</option>
+              </select>
+              <small className="field-hint">El método de empresa actual se usa mientras este producto no tenga una excepción.</small>
+            </label> : null}
           </FormSection>
           <FormSection title="Código" hint={productMessages.barcodeNote} />
           <FormActions>
@@ -208,6 +239,11 @@ function sortParam(sort: { column: string; direction: 'asc' | 'desc' } | null): 
     return ''
   }
   return `${sort.column}:${sort.direction}`
+}
+
+function parseCostingMethod(value: string): 'PEPS' | 'UEPS' | 'FEFO' | 'AVERAGE' | 'SPECIFIC' | null {
+  if (value === 'PEPS' || value === 'UEPS' || value === 'FEFO' || value === 'AVERAGE' || value === 'SPECIFIC') return value
+  return null
 }
 
 function factorIssue(value: string): string | null {

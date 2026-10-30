@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSession } from '@/app/providers/session'
 import { COMPANY_MODULES, type ModuleGrant } from '@/modules/access'
 import { designatePriceApprover, readPriceSettings } from '@/modules/prices/api'
@@ -10,8 +10,10 @@ import { PageIntro, Panel } from '@/shared/ui/ops'
 import { ListSkeleton } from '@/shared/ui/skeleton'
 import { ServerTable, type PageQuery } from '@/shared/ui/server-table'
 import { changeOwnPassword, createCompanyUser, listCompanyUsers, readAiSettings, saveAiSettings,
-  setCompanyUserActive, setCompanyUserGrants, type AiSettings, type CompanyUser } from '../api'
+  setCompanyUserActive, setCompanyUserGrants, readPaymentSettings, savePaymentSettings,
+  type AiSettings, type CompanyUser, type PaymentAccount, type PaymentSettings } from '../api'
 import './settings-page.css'
+import { CompanyControlsPanel } from './company-controls-panel'
 
 const moduleNames: Record<(typeof COMPANY_MODULES)[number], string> = {
   dashboard: 'Tablero', products: 'Productos', inventory: 'Inventario', prices: 'Precios',
@@ -23,7 +25,7 @@ const modelOptions: Record<AiSettings['provider'], readonly { value: string; lab
   openai: [{ value: 'gpt-4o-mini', label: 'GPT-4o mini' }, { value: 'gpt-4o', label: 'GPT-4o' }],
 }
 
-type SettingsSection = 'overview' | 'users' | 'prices' | 'documents' | 'assistant'
+type SettingsSection = 'overview' | 'users' | 'prices' | 'documents' | 'assistant' | 'payments' | 'controls'
 
 function generatePassword(): string {
   const groups = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!@#$%&*?']
@@ -50,6 +52,7 @@ export function SettingsPage({ section = 'overview' }: { section?: SettingsSecti
   const price = useQuery({ queryKey: ['price-settings', companyId], queryFn: readPriceSettings, enabled: Boolean(companyId) && section === 'prices' })
   const voucherVoidSettings = useQuery({ queryKey: ['voucher-void-settings', companyId], queryFn: readVoucherVoidApproverSettings, enabled: Boolean(companyId) && section === 'documents' })
   const ai = useQuery({ queryKey: ['ai-settings', companyId], queryFn: readAiSettings, enabled: Boolean(companyId) && section === 'assistant' })
+  const payments = useQuery({ queryKey: ['payment-settings', companyId], queryFn: () => readPaymentSettings(companyId ?? ''), enabled: Boolean(companyId) && section === 'payments' })
   const [selected, setSelected] = useState<CompanyUser | null>(null)
   const [userDialogMode, setUserDialogMode] = useState<'details' | 'permissions' | 'status'>('details')
   const [notice, setNotice] = useState('')
@@ -72,6 +75,7 @@ export function SettingsPage({ section = 'overview' }: { section?: SettingsSecti
         client.invalidateQueries({ queryKey: ['price-settings', companyId] }),
         client.invalidateQueries({ queryKey: ['voucher-void-settings', companyId] }),
         client.invalidateQueries({ queryKey: ['ai-settings', companyId] }),
+        client.invalidateQueries({ queryKey: ['payment-settings', companyId] }),
       ])
       return true
     } catch (error) {
@@ -135,12 +139,15 @@ export function SettingsPage({ section = 'overview' }: { section?: SettingsSecti
   }
 
   return <div className="ops-page settings-page">
-    <PageIntro title={section === 'overview' ? 'Configuración' : section === 'users' ? 'Usuarios y accesos' : section === 'prices' ? 'Política de precios' : section === 'documents' ? 'Aprobación de anulaciones' : 'Asistente con IA'} description={`Administra ${companyName ?? 'esta empresa'} por tema.`} />
+    <PageIntro title={section === 'overview' ? 'Configuración' : section === 'users' ? 'Usuarios y accesos' : section === 'prices' ? 'Política de precios' : section === 'documents' ? 'Aprobación de anulaciones' : section === 'payments' ? 'Métodos de pago y bancos' : section === 'controls' ? 'Controles fiscales y operativos' : 'Asistente con IA'} description={`Administra ${companyName ?? 'esta empresa'} por tema.`} />
     {notice ? <p className="form-notice" role="status">{notice}</p> : null}
     {section === 'overview' ? <div className="settings-category-list">
       <Link to="/settings/users" className="settings-category"><span><strong>Usuarios y accesos</strong><small>Crear empleados, cambiar claves y asignar permisos.</small></span><span aria-hidden="true">→</span></Link>
       {grants?.some((grant) => grant.module === 'prices') ? <Link to="/settings/prices" className="settings-category"><span><strong>Política de precios</strong><small>Designar quién puede cambiar precios directamente.</small></span><span aria-hidden="true">→</span></Link> : null}
       <Link to="/settings/documents" className="settings-category"><span><strong>Comprobantes</strong><small>Designar quién puede aprobar solicitudes de anulación.</small></span><span aria-hidden="true">→</span></Link>
+      <Link to="/settings/payments" className="settings-category"><span><strong>Métodos de pago y bancos</strong><small>Vincula cobros y pagos con cuentas del catálogo contable.</small></span><span aria-hidden="true">→</span></Link>
+      <Link to="/settings/controls" className="settings-category"><span><strong>Fiscal, contabilidad e inventario</strong><small>CAI, periodos, decimales, bodegas, costos y conciliación.</small></span><span aria-hidden="true">→</span></Link>
+      {grants?.some((grant) => grant.module === 'documents') ? <Link to="/settings/templates" className="settings-category"><span><strong>Plantillas de documentos</strong><small>Versiones, logo, papel y presentación de los formatos.</small></span><span aria-hidden="true">→</span></Link> : null}
       <Link to="/settings/assistant" className="settings-category"><span><strong>Asistente con IA</strong><small>Proveedor, modelo y clave del chat embebido.</small></span><span aria-hidden="true">→</span></Link>
       <Link to="/settings/integrations" className="settings-category"><span><strong>Integraciones MCP</strong><small>Credenciales, conectores e historial de uso.</small></span><span aria-hidden="true">→</span></Link>
     </div> : null}
@@ -205,6 +212,12 @@ export function SettingsPage({ section = 'overview' }: { section?: SettingsSecti
         {ai.isError ? <div className="table-load-error" role="alert"><p>No se pudo leer la configuración del asistente.</p><Button type="button" variant="quiet" onClick={() => void ai.refetch()}>Reintentar</Button></div> : null}
         {ai.data ? <AiForm settings={ai.data} canEdit={canEdit} busy={busy} onSubmit={saveAi} /> : null}
       </Panel> : null}
+    {section === 'payments' ? <Panel title="Métodos de pago y cuentas bancarias"><p className="muted">Los cobros de ventas y pagos de compras toman las cuentas asignadas aquí. Los valores precargados son ficticios para desarrollo.</p>
+      {payments.isPending ? <ListSkeleton rows={3} label="Cargando métodos y cuentas bancarias…" /> : null}
+      {payments.isError ? <div className="table-load-error" role="alert"><p>No se pudo cargar la configuración de pagos.</p><Button type="button" variant="quiet" onClick={() => void payments.refetch()}>Reintentar</Button></div> : null}
+      {payments.data && companyId ? <PaymentSettingsForm key={companyId} settings={payments.data.settings} accounts={payments.data.accounts} busy={busy} onSubmit={(next) => run(() => savePaymentSettings(companyId, next), 'Configuración de pagos guardada.')} /> : null}
+      </Panel> : null}
+    {section === 'controls' ? <CompanyControlsPanel /> : null}
     {section === 'users' ? <dialog ref={userDialog} className="dialog settings-dialog" aria-labelledby="user-settings-title">
       <div><div className="settings-dialog-header"><span><h2 id="user-settings-title">{selected?.displayName}</h2><p>{selected?.email}</p></span><button type="button" className="settings-dialog-close" aria-label="Cerrar" onClick={() => userDialog.current?.close()}>×</button></div>
         {selected?.role === 'operator' && canEdit && userDialogMode === 'status' ? <div className="settings-status-action"><p>{selected.active ? 'Este usuario perderá acceso a la empresa y sus tokens MCP dejarán de funcionar.' : 'Este usuario recuperará acceso según sus permisos actuales.'}</p><Button type="button" variant="quiet" disabled={busy} onClick={() => {
@@ -242,5 +255,47 @@ function AiForm({ settings, canEdit, busy, onSubmit }: { settings: AiSettings; c
     <label className="field">Clave de API<input name="apiKey" type="password" autoComplete="new-password" spellCheck={false} placeholder={settings.configured ? 'Déjalo vacío para conservar la clave actual' : 'Pega aquí la clave del proveedor'} aria-describedby="ai-key-help" disabled={!canEdit} /></label>
     <small id="ai-key-help" className="ai-settings-help">Por seguridad, la clave guardada no se puede consultar. Solo se reemplaza si escribes una nueva.</small>
     {canEdit ? <div className="ai-settings-actions"><Button type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar conexión'}</Button></div> : null}
+  </form>
+}
+
+function PaymentSettingsForm({ settings, accounts, busy, onSubmit }: { settings: PaymentSettings; accounts: PaymentAccount[]; busy: boolean; onSubmit: (settings: PaymentSettings) => Promise<boolean> }) {
+  const [draft, setDraft] = useState(settings)
+  useEffect(() => { setDraft(settings) }, [settings])
+  const collectionAccounts = accounts.filter((account) => account.postable && account.collection)
+  const paymentAccounts = accounts.filter((account) => account.postable && (account.kind === 'asset' || account.code === '2.01.01.001'))
+  const bankAccounts = accounts.filter((account) => account.postable && account.kind === 'asset' && !account.collection)
+
+  function updateMethod(id: string, patch: Partial<PaymentSettings['paymentMethods'][number]>): void {
+    setDraft((current) => ({ ...current, paymentMethods: current.paymentMethods.map((method) => method.id === id ? { ...method, ...patch } : method) }))
+  }
+
+  function updateBank(id: string, patch: Partial<PaymentSettings['bankAccounts'][number]>): void {
+    setDraft((current) => ({ ...current, bankAccounts: current.bankAccounts.map((bank) => bank.id === id ? { ...bank, ...patch } : bank) }))
+  }
+
+  return <form className="payment-settings-form" onSubmit={(event) => { event.preventDefault(); void onSubmit(draft) }}>
+    <div className="payment-settings-heading"><div><h3>Métodos de pago</h3><p>Selecciona qué cuenta recibe una venta y cuál se acredita al registrar una compra.</p></div><Button type="button" variant="quiet" onClick={() => setDraft((current) => ({ ...current, paymentMethods: [...current.paymentMethods, { id: crypto.randomUUID(), name: 'Nuevo método', kind: 'cash', collectionAccountCode: collectionAccounts[0]?.code ?? null, paymentAccountCode: paymentAccounts[0]?.code ?? null, active: true }] }))}>Agregar método</Button></div>
+    <div className="payment-settings-list">
+      {draft.paymentMethods.map((method) => <fieldset className="payment-settings-row" key={method.id}>
+        <label className="field">Nombre<input value={method.name} onChange={(event) => updateMethod(method.id, { name: event.target.value })} maxLength={120} required /></label>
+        <label className="field">Tipo<select value={method.kind} onChange={(event) => updateMethod(method.id, { kind: event.target.value as PaymentSettings['paymentMethods'][number]['kind'] })}><option value="cash">Efectivo</option><option value="card">Tarjeta / POS</option><option value="bank-transfer">Transferencia</option><option value="supplier-credit">Crédito de proveedor</option></select></label>
+        <label className="field">Cobros de venta<select value={method.collectionAccountCode ?? ''} onChange={(event) => updateMethod(method.id, { collectionAccountCode: event.target.value || null })}><option value="">No disponible</option>{collectionAccounts.map((account) => <option key={account.code} value={account.code}>{account.code} · {account.name}</option>)}</select></label>
+        <label className="field">Pagos de compra<select value={method.paymentAccountCode ?? ''} onChange={(event) => updateMethod(method.id, { paymentAccountCode: event.target.value || null })}><option value="">No disponible</option>{paymentAccounts.map((account) => <option key={account.code} value={account.code}>{account.code} · {account.name}</option>)}</select></label>
+        <label className="payment-settings-active"><input type="checkbox" checked={method.active} onChange={(event) => updateMethod(method.id, { active: event.target.checked })} /> Activo</label>
+        <Button type="button" variant="quiet" aria-label={`Quitar método ${method.name}`} onClick={() => setDraft((current) => ({ ...current, paymentMethods: current.paymentMethods.filter((item) => item.id !== method.id) }))}>Quitar</Button>
+      </fieldset>)}
+    </div>
+    <div className="payment-settings-heading payment-settings-heading--banks"><div><h3>Cuentas bancarias ficticias</h3><p>Se usan para conciliar cobros y pagos con el mayor contable.</p></div><Button type="button" variant="quiet" onClick={() => setDraft((current) => ({ ...current, bankAccounts: [...current.bankAccounts, { id: crypto.randomUUID(), bankName: '', accountName: '', maskedNumber: '•••• 0000', currency: 'HNL', accountCode: bankAccounts[0]?.code ?? '', active: true }] }))}>Agregar banco</Button></div>
+    <div className="payment-settings-list">
+      {draft.bankAccounts.map((bank) => <fieldset className="payment-settings-row payment-settings-row--bank" key={bank.id}>
+        <label className="field">Banco<input value={bank.bankName} onChange={(event) => updateBank(bank.id, { bankName: event.target.value })} maxLength={120} required /></label>
+        <label className="field">Nombre de cuenta<input value={bank.accountName} onChange={(event) => updateBank(bank.id, { accountName: event.target.value })} maxLength={120} required /></label>
+        <label className="field">Número protegido<input value={bank.maskedNumber} onChange={(event) => updateBank(bank.id, { maskedNumber: event.target.value })} maxLength={32} required /></label>
+        <label className="field">Cuenta contable<select value={bank.accountCode} onChange={(event) => updateBank(bank.id, { accountCode: event.target.value })} required>{bankAccounts.map((account) => <option key={account.code} value={account.code}>{account.code} · {account.name}</option>)}</select></label>
+        <label className="payment-settings-active"><input type="checkbox" checked={bank.active} onChange={(event) => updateBank(bank.id, { active: event.target.checked })} /> Activa</label>
+        <Button type="button" variant="quiet" aria-label={`Quitar cuenta ${bank.bankName || 'bancaria'}`} onClick={() => setDraft((current) => ({ ...current, bankAccounts: current.bankAccounts.filter((item) => item.id !== bank.id) }))}>Quitar</Button>
+      </fieldset>)}
+    </div>
+    <div className="payment-settings-footer"><p>Los documentos de desarrollo todavía no registran retenciones ni notas contra cuentas. Se conservan como documentos hasta definir la dirección y aprobación de cada ajuste.</p><Button type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar configuración'}</Button></div>
   </form>
 }

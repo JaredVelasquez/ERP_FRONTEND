@@ -22,14 +22,14 @@ const multiPresentationCard: StockCard = {
   productId: 'product-1', name: 'Refresco', internalBarcode: '10001', baseQuantity: 48,
   resolvedUnit: null,
   presentations: [
-    { unit: 'Lata 355 ml', factor: 1, salePrice: 20 },
-    { unit: 'Caja 12 latas', factor: 12, salePrice: 220 },
+    { unit: 'Lata 355 ml', factor: 1, salePrice: 20, purchasable: true, sellable: true },
+    { unit: 'Caja 12 latas', factor: 12, salePrice: 220, purchasable: true, sellable: true },
   ],
 }
 
 const singlePresentationCard: StockCard = {
   productId: 'product-2', name: 'Agua', internalBarcode: '20002', baseQuantity: 24,
-  resolvedUnit: 'Botella', presentations: [{ unit: 'Botella', factor: 1, salePrice: 18 }],
+  resolvedUnit: 'Botella', presentations: [{ unit: 'Botella', factor: 1, salePrice: 18, purchasable: true, sellable: true }],
 }
 
 describe('scan movement page', () => {
@@ -77,6 +77,23 @@ describe('scan movement page', () => {
       expect.objectContaining({ productId: 'product-2', presentationUnit: 'Botella', presentationFactor: 1, quantity: 1, saleAmount: 18 }),
       expect.objectContaining({ productId: 'product-3', presentationUnit: 'Botella', presentationFactor: 1, quantity: 1, saleAmount: 18 }),
     ])
+  })
+
+  it('automatically adds the only sellable presentation and skips unavailable presentation choices', async () => {
+    vi.mocked(lookupCode).mockResolvedValue({
+      ...singlePresentationCard,
+      presentations: [
+        { unit: 'Unidad', factor: 1, salePrice: 18, purchasable: true, sellable: true },
+        { unit: 'Paquete', factor: 6, salePrice: null, purchasable: true, sellable: false },
+      ],
+      resolvedUnit: null,
+    })
+    renderScanPage()
+
+    await scanCode('20002')
+
+    expect(screen.getByLabelText(scanMessages.quantity)).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: scanMessages.choosePresentation })).not.toBeInTheDocument()
   })
 
   it('keeps Enter in the quantity field from submitting another barcode lookup', async () => {

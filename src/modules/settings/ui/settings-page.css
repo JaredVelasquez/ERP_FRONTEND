@@ -43,3 +43,58 @@
 .settings-credential code { max-width: 100%; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .settings-category { transition: none; } .settings-category:hover { transform: none; } }
 @media (max-width: 720px) { .settings-category-list { grid-template-columns: 1fr; } }
+.payment-settings-form { display: grid; gap: 1.2rem; margin-top: 1rem; }
+.payment-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid var(--border); }
+.payment-settings-heading h3, .payment-settings-heading p { margin: 0; }
+.payment-settings-heading h3 { font-size: 1rem; }
+.payment-settings-heading p { margin-top: .25rem; color: var(--text-muted); font-size: .8rem; }
+.payment-settings-heading--banks { margin-top: .7rem; }
+.payment-settings-list { display: grid; gap: .65rem; }
+.payment-settings-row { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(145px, .75fr) minmax(190px, 1.2fr) minmax(190px, 1.2fr) auto auto; align-items: end; gap: .7rem; min-width: 0; margin: 0; padding: .75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.payment-settings-row--bank { grid-template-columns: minmax(130px, .8fr) minmax(150px, 1fr) minmax(125px, .7fr) minmax(210px, 1.3fr) auto auto; }
+.payment-settings-row .field { min-width: 0; gap: .35rem; font-size: .77rem; }
+.payment-settings-row input:not([type="checkbox"]), .payment-settings-row select { min-width: 0; width: 100%; min-height: 40px; font-size: .82rem; }
+.payment-settings-active { display: inline-flex; min-height: 42px; align-items: center; gap: .4rem; color: var(--text-muted); font-size: .8rem; white-space: nowrap; }
+.payment-settings-active input { width: 17px; height: 17px; accent-color: var(--brand); }
+.payment-settings-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+.payment-settings-footer p { max-width: 75ch; margin: 0; color: var(--text-muted); font-size: .78rem; line-height: 1.5; }
+.payment-settings-footer .ui-button { flex: 0 0 auto; }
+.company-controls { display: grid; gap: 1rem; }
+.control-section { overflow: hidden; padding: 1.1rem; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 32px rgb(31 63 104 / 7%); }
+.control-section > header { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding-bottom: .9rem; border-bottom: 1px solid var(--border); }
+.control-section > header h2, .control-section > header p { margin: 0; }
+.control-section > header h2 { font-size: 1.08rem; }
+.control-section > header small { color: var(--brand); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.control-section > header p { max-width: 65ch; color: var(--text-muted); font-size: .78rem; line-height: 1.45; }
+.control-form { display: grid; gap: 1rem; padding-top: 1rem; }
+.control-grid { display: grid; gap: .75rem; }
+.control-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.control-grid--precision { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: .8rem; border-radius: 12px; background: var(--surface-muted); }
+.control-span-two { grid-column: span 2; }
+.control-check { display: inline-flex; align-items: center; gap: .55rem; color: var(--text-muted); font-size: .82rem; }
+.control-actions { display: flex; justify-content: flex-end; }
+.control-inline { display: grid; grid-template-columns: minmax(120px, .35fr) minmax(220px, 1fr) auto; align-items: end; gap: .75rem; padding: 1rem 0; }
+.control-inline--period { grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(150px, .6fr)) auto; }
+.control-inline--bank { grid-template-columns: repeat(4, minmax(140px, 1fr)) auto; }
+.control-list { display: grid; gap: .5rem; }
+.control-list article { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); }
+.control-list article span { display: grid; min-width: 0; gap: .15rem; }
+.control-list article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.control-list article small { color: var(--text-muted); }
+.control-metric { margin: 1rem 0 0; color: var(--text-muted); }
+.control-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; padding-top: 1rem; }
+.control-summary span { display: grid; gap: .2rem; padding: .75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); }
+.control-summary small { color: var(--text-muted); }
+.control-summary .is-balanced { border-color: color-mix(in srgb, #1f9d71 35%, var(--border)); }
+.control-summary .is-warning { border-color: color-mix(in srgb, #c97a24 45%, var(--border)); }
+@media (max-width: 1100px) { .payment-settings-row, .payment-settings-row--bank { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .payment-settings-heading, .payment-settings-footer { align-items: stretch; flex-direction: column; }
+  .payment-settings-row, .payment-settings-row--bank { grid-template-columns: minmax(0, 1fr); }
+  .payment-settings-active { min-height: 36px; }
+  .payment-settings-footer .ui-button { width: 100%; }
+  .control-section > header { align-items: flex-start; flex-direction: column; gap: .4rem; }
+  .control-grid--three, .control-grid--precision, .control-inline, .control-inline--period, .control-inline--bank, .control-summary { grid-template-columns: minmax(0, 1fr); }
+  .control-span-two { grid-column: auto; }
+  .control-inline .ui-button, .control-actions .ui-button { width: 100%; }
+}

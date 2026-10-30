@@ -1,6 +1,6 @@
 ﻿import { authenticatedFetch } from '@/shared/api/http-client'
 import { appConfig } from '@/app/config/app-config'
-import { CASH_ACCOUNT, type CardPresentation } from './domain/scan-ticket'
+import type { CardPresentation } from './domain/scan-ticket'
 
 export interface StockCard {
   productId: string
@@ -32,10 +32,11 @@ export async function searchByName(companyId: string, name: string): Promise<Pro
   return readNameHits(await response.json())
 }
 
-export async function lookupCode(companyId: string, code: string): Promise<LookupResult> {
+export async function lookupCode(companyId: string, code: string, warehouseId?: string): Promise<LookupResult> {
   const url = new URL('/erp/stock-cards', appConfig.gatewayUrl)
   url.searchParams.set('companyId', companyId)
   url.searchParams.set('code', code)
+  if (warehouseId) url.searchParams.set('warehouseId', warehouseId)
   const response = await authenticatedFetch(url, { credentials: 'include' })
   if (response.status === 400) {
     const message = await readMessage(response)
@@ -59,7 +60,10 @@ export async function seedChart(companyId: string): Promise<boolean> {
 
 export async function confirmMovement(input: {
   companyId: string
+  warehouseId?: string
   type: 'purchase' | 'sale'
+  paymentAccountCode: string | null
+  collectionAccountCode: string | null
   lines: Array<{
     productId: string
     presentationUnit?: string
@@ -68,18 +72,19 @@ export async function confirmMovement(input: {
     unitCost: number | null
     saleAmount: number | null
   }>
-}): Promise<{ journal: PostedLine[] } | { error: string }> {
+}): Promise<{ id?: string; type?: string; journal: PostedLine[] } | { error: string }> {
   const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/inventory-documents/confirm`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       companyId: input.companyId,
+      warehouseId: input.warehouseId,
       type: input.type,
       idempotencyKey: crypto.randomUUID(),
       receivedAt: new Date().toISOString(),
-      paymentAccountCode: input.type === 'purchase' ? CASH_ACCOUNT : null,
-      collectionAccountCode: input.type === 'sale' ? CASH_ACCOUNT : null,
+      paymentAccountCode: input.paymentAccountCode,
+      collectionAccountCode: input.collectionAccountCode,
       lines: input.lines.map((line) => ({
         ...line,
         selectedLayerId: null,
@@ -90,7 +95,9 @@ export async function confirmMovement(input: {
   if (!response.ok) {
     return { error: await readMessage(response) }
   }
-  return { journal: readJournal(await response.json()) }
+  const payload: unknown = await response.json()
+  if (!isRecord(payload) || !isRecord(payload.document) || typeof payload.document.id !== 'string' || typeof payload.document.type !== 'string') return { error: 'Respuesta de movimiento inválida.' }
+  return { id: payload.document.id, type: payload.document.type, journal: readJournal(payload) }
 }
 
 function readNameHits(payload: unknown): ProductSearchHit[] {
@@ -136,6 +143,8 @@ function readPresentation(value: unknown): CardPresentation[] {
     unit: value.unit,
     factor: numberOf(value.factor),
     salePrice: value.salePrice === null || value.salePrice === undefined ? null : numberOf(value.salePrice),
+    purchasable: value.purchasable === true,
+    sellable: value.sellable === true,
   }]
 }
 

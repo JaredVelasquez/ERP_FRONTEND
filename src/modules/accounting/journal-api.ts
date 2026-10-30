@@ -17,7 +17,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   if (!response.ok) {
     const issue: unknown = await response.json().catch(() => null)
     const message = typeof issue === 'object' && issue !== null && 'message' in issue && typeof issue.message === 'string'
-      ? issue.message : 'No se pudo completar la operaciÃ³n contable.'
+      ? issue.message : 'No se pudo completar la operación contable.'
     throw new Error(message)
   }
   return response.json()

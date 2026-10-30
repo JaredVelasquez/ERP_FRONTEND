@@ -20,7 +20,7 @@ const documentLabels: Record<string, string> = {
   shrinkage: 'Merma',
   adjustment: 'Ajuste',
   'cash-transfer': 'Traslado',
-  void: 'AnulaciÃ³n',
+  void: 'Anulación',
 }
 
 const statusLabels: Record<string, string> = {

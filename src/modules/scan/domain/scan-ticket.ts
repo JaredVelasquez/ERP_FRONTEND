@@ -2,6 +2,8 @@ export interface CardPresentation {
   unit: string
   factor: number
   salePrice: number | null
+  purchasable: boolean
+  sellable: boolean
 }
 
 export interface PricedLine {

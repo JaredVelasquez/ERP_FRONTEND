@@ -11,7 +11,7 @@ export async function importCatalog(companyId: string, csv: string): Promise<{ d
   })
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null)
-    const detail = isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'No se pudo importar el catÃ¡logo.'
+    const detail = isRecord(payload) && typeof payload.message === 'string' ? payload.message : 'No se pudo importar el catálogo.'
     throw new Error(detail)
   }
   return response.json() as Promise<{ document: unknown | null }>

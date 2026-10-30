@@ -4,6 +4,10 @@ import { appConfig } from '@/app/config/app-config'
 export interface CatalogProduct {
   id: string
   name: string
+  itemType: 'product' | 'service'
+  taxCategoryCode: string
+  active: boolean
+  presentations: CatalogPresentation[]
   category: string
   supplier: string
   barcode: string
@@ -13,6 +17,15 @@ export interface CatalogProduct {
   stock: string
 }
 
+export interface CatalogPresentation {
+  unit: string
+  factor: number
+  sellable: boolean
+  purchasable: boolean
+  salePrice: number | null
+  referenceUnitCost: number | null
+}
+
 export interface CatalogPage {
   items: CatalogProduct[]
   page: number
@@ -20,7 +33,9 @@ export interface CatalogPage {
   total: number
 }
 
-export async function createCatalogProduct(input: { companyId: string; name: string; unit: string; factor: number; salePrice: number | null }): Promise<void> {
+export type ProductCostingMethod = 'PEPS' | 'UEPS' | 'FEFO' | 'AVERAGE' | 'SPECIFIC'
+
+export async function createCatalogProduct(input: { companyId: string; name: string; itemType: 'product' | 'service'; unit: string; factor: number; salePrice: number | null; costingMethod: ProductCostingMethod | null }): Promise<void> {
   const response = await authenticatedFetch(`${appConfig.gatewayUrl}/erp/products`, {
     method: 'POST',
     credentials: 'include',
@@ -28,13 +43,14 @@ export async function createCatalogProduct(input: { companyId: string; name: str
     body: JSON.stringify({
       companyId: input.companyId,
       name: input.name.trim(),
+      itemType: input.itemType,
       category: '',
       baseUnit: 'unidad',
       tracksExpiry: false,
-      costingMethod: null,
+      costingMethod: input.itemType === 'service' ? null : input.costingMethod,
       marginPercent: null,
       taxCategoryCode: 'none',
-      presentations: [{ unit: input.unit.trim() || 'unidad', factor: input.factor, purchasable: true, sellable: input.salePrice !== null, salePrice: input.salePrice, manufacturerBarcode: null }],
+      presentations: [{ unit: input.unit.trim() || (input.itemType === 'service' ? 'servicio' : 'unidad'), factor: input.factor, purchasable: input.itemType === 'product', sellable: input.salePrice !== null, salePrice: input.salePrice, manufacturerBarcode: null }],
     }),
   })
   if (!response.ok) {
@@ -47,6 +63,7 @@ export async function listCatalog(companyId: string, query: {
   pageSize: number
   search: string
   sort: string
+  itemType?: 'product' | 'service' | 'all'
 }): Promise<CatalogPage> {
   const url = new URL('/erp/products', appConfig.gatewayUrl)
   url.searchParams.set('companyId', companyId)
@@ -54,6 +71,7 @@ export async function listCatalog(companyId: string, query: {
   url.searchParams.set('pageSize', String(query.pageSize))
   url.searchParams.set('search', query.search)
   url.searchParams.set('sort', query.sort)
+  url.searchParams.set('itemType', query.itemType ?? 'product')
   const response = await authenticatedFetch(url, { credentials: 'include' })
   if (!response.ok) {
     throw new Error('products')
@@ -94,11 +112,16 @@ function readProduct(value: unknown): CatalogProduct[] {
   if (!isRecord(value) || typeof value.name !== 'string') {
     return []
   }
-  const presentation = firstPresentation(value.presentations)
+  const presentations = readPresentations(value.presentations)
+  const presentation = productPresentation(presentations[0] ?? emptyPresentation())
   return [
     {
       id: typeof value.id === 'string' ? value.id : value.name,
       name: value.name,
+      itemType: value.itemType === 'service' ? 'service' : 'product',
+      taxCategoryCode: typeof value.taxCategoryCode === 'string' ? value.taxCategoryCode : 'none',
+      active: value.active !== false,
+      presentations,
       category: typeof value.category === 'string' ? value.category : '',
       supplier: typeof value.supplier === 'string' ? value.supplier : '',
       barcode: typeof value.internalBarcode === 'string' ? value.internalBarcode : '',
@@ -118,19 +141,33 @@ function numberOf(value: unknown, fallback: number): number {
   return parsed
 }
 
-function firstPresentation(value: unknown): { unit: string; factor: string; salePrice: string } {
-  if (!Array.isArray(value)) {
-    return { unit: '', factor: '', salePrice: '' }
-  }
-  const unitRow = value.find((item) => isRecord(item) && item.unit === 'unidad')
-  const row = isRecord(unitRow) ? unitRow : value.find((item) => isRecord(item))
-  if (!isRecord(row)) {
-    return { unit: '', factor: '', salePrice: '' }
-  }
+function readPresentations(value: unknown): CatalogPresentation[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((row) => isRecord(row) && typeof row.unit === 'string' ? [{
+    unit: row.unit,
+    factor: numberOf(row.factor, 1),
+    sellable: row.sellable === true,
+    purchasable: row.purchasable === true,
+    salePrice: nullableNumber(row.salePrice),
+    referenceUnitCost: nullableNumber(row.referenceUnitCost),
+  }] : [])
+}
+
+function emptyPresentation(): CatalogPresentation {
+  return { unit: '', factor: 1, sellable: false, purchasable: false, salePrice: null, referenceUnitCost: null }
+}
+
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function productPresentation(value: CatalogPresentation): { unit: string; factor: string; salePrice: string } {
   return {
-    unit: typeof row.unit === 'string' ? row.unit : '',
-    factor: row.factor === undefined || row.factor === null ? '' : String(row.factor),
-    salePrice: row.salePrice === undefined || row.salePrice === null ? 'â€”' : String(row.salePrice),
+    unit: value.unit,
+    factor: String(value.factor),
+    salePrice: value.salePrice === null ? '—' : String(value.salePrice),
   }
 }
 

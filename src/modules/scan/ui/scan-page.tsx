@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useSession } from '@/app/providers/session'
 import { PageIntro, Panel } from '@/shared/ui/ops'
 import { ListSkeleton } from '@/shared/ui/skeleton'
@@ -10,7 +10,6 @@ import {
   money,
   parseMoney,
   parseQuantity,
-  pricedUnit,
   receiptTotal,
   saleExceedsStock,
   saleTotal,
@@ -18,6 +17,9 @@ import {
   type PricedLine,
 } from '../domain/scan-ticket'
 import { scanMessages } from '../messages'
+import { IconAction } from '@/shared/ui/icon-action'
+import { ItemPickerResults } from '@/shared/ui/item-picker-results'
+import { readWarehouses } from '@/modules/settings/api'
 
 type ScanMode = 'ingreso' | 'salida'
 
@@ -34,10 +36,12 @@ interface DraftLine {
   onHand: number
 }
 
-export function ScanPage() {
+const legacyCashMethod = { id: 'legacy-cash', name: 'Efectivo', collectionAccountCode: '1.01.01.001', paymentAccountCode: '1.01.01.001', active: true } as const
+
+export function ScanPage({ embedded = false, initialMode = 'salida', paymentMethods, onMovementPosted }: { embedded?: boolean; initialMode?: ScanMode; paymentMethods?: readonly { id: string; name: string; collectionAccountCode: string | null; paymentAccountCode: string | null; active: boolean }[]; onMovementPosted?: (document: { id: string; type: string }, prepareInvoice: boolean) => void }) {
   const { companyId } = useSession()
   const codeRef = useRef<HTMLInputElement>(null)
-  const [mode, setMode] = useState<ScanMode>('salida')
+  const [mode, setMode] = useState<ScanMode>(initialMode)
   const [code, setCode] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -46,6 +50,18 @@ export function ScanPage() {
   const [presentationChoice, setPresentationChoice] = useState<{ card: StockCard; code: string } | null>(null)
   const [posting, setPosting] = useState(false)
   const [looking, setLooking] = useState(false)
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('')
+  const [saleCompletion, setSaleCompletion] = useState<'sale-only' | 'invoice'>('sale-only')
+  const [warehouses, setWarehouses] = useState<Awaited<ReturnType<typeof readWarehouses>>>([])
+  useEffect(() => { if (!companyId) return; void readWarehouses().then(setWarehouses).catch(() => setWarehouses([])) }, [companyId])
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('')
+  const availableWarehouses = warehouses.filter((warehouse) => warehouse.active)
+  const activeWarehouseId = availableWarehouses.some((warehouse) => warehouse.id === selectedWarehouseId)
+    ? selectedWarehouseId
+    : availableWarehouses.find((warehouse) => warehouse.isDefault)?.id ?? availableWarehouses[0]?.id
+  const effectivePaymentMethods = paymentMethods ?? [legacyCashMethod]
+  const availablePaymentMethods = effectivePaymentMethods.filter((method) => method.active && (mode === 'salida' ? method.collectionAccountCode !== null : method.paymentAccountCode !== null))
+  const selectedPaymentMethod = availablePaymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? availablePaymentMethods[0] ?? null
   const priced = lines.flatMap(toPriced)
   const totalsReady = priced.length === lines.length
 
@@ -70,7 +86,7 @@ export function ScanPage() {
   async function findProduct(activeCompanyId: string, nextCode: string) {
     let card: StockCard | 'unknown' | 'failed'
     try {
-      card = await lookupCode(activeCompanyId, nextCode)
+      card = await lookupCode(activeCompanyId, nextCode, activeWarehouseId)
     } catch {
       setNotice(scanMessages.lookupFailed)
       return
@@ -99,12 +115,27 @@ export function ScanPage() {
   }
 
   function addFound(card: StockCard, nextCode: string) {
-    if (card.presentations.length > 1) {
-      setPresentationChoice({ card, code: nextCode })
+    const eligible = eligiblePresentations(card, mode)
+    if (eligible.length === 0) {
+      setNotice(mode === 'salida' ? scanMessages.noPrice : scanMessages.notPurchasable)
+      return
+    }
+    const eligibleCard = { ...card, presentations: eligible }
+    const resolved = eligible.find((presentation) => presentation.unit === card.resolvedUnit)
+    if (resolved !== undefined) {
+      addSelected(eligibleCard, nextCode, resolved)
+      return
+    }
+    if (eligible.length > 1) {
+      setPresentationChoice({ card: eligibleCard, code: nextCode })
       setNotice(scanMessages.choosePresentation)
       return
     }
-    addSelected(card, nextCode, pricedUnit(card))
+    const selected = eligible[0]
+    if (selected === undefined) {
+      return
+    }
+    addSelected(eligibleCard, nextCode, selected)
   }
 
   function addSelected(card: StockCard, nextCode: string, presentation: CardPresentation) {
@@ -176,6 +207,10 @@ export function ScanPage() {
       setNotice(scanMessages.cost)
       return
     }
+    if (selectedPaymentMethod === null) {
+      setNotice('Configura un método de pago para este tipo de movimiento.')
+      return
+    }
     setPosting(true)
     try {
       const seeded = await seedChart(companyId)
@@ -185,7 +220,10 @@ export function ScanPage() {
       }
       const result = await confirmMovement({
       companyId,
+      warehouseId: activeWarehouseId,
       type: mode === 'ingreso' ? 'purchase' : 'sale',
+        collectionAccountCode: mode === 'salida' ? selectedPaymentMethod.collectionAccountCode : null,
+        paymentAccountCode: mode === 'ingreso' ? selectedPaymentMethod.paymentAccountCode : null,
       lines: priced.map((line) => ({
         productId: line.productId,
         presentationUnit: line.unit,
@@ -202,6 +240,7 @@ export function ScanPage() {
       setLines([])
       setNotice(mode === 'ingreso' ? scanMessages.postedIn : scanMessages.postedOut)
       setPosted(postedNotes(result.journal))
+      onMovementPosted?.({ id: result.id ?? '', type: result.type ?? (mode === 'salida' ? 'sale' : 'purchase') }, mode === 'salida' && saleCompletion === 'invoice')
       codeRef.current?.focus()
     } catch {
       setNotice(scanMessages.failed)
@@ -221,8 +260,8 @@ export function ScanPage() {
   const totalReady = totalsReady && (mode === 'salida' || !missingReceiptCost(priced))
 
   return (
-    <div className="ops-page scan-page">
-      <PageIntro title={scanMessages.title} description={scanMessages.description} />
+    <div className={embedded ? 'scan-page scan-page--embedded' : 'ops-page scan-page'}>
+      {embedded ? null : <PageIntro title={scanMessages.title} description={scanMessages.description} />}
       <div className="scan-modes" role="group" aria-label={scanMessages.title}>
         <button type="button" className={mode === 'salida' ? 'primary-button' : 'ghost-button'} aria-pressed={mode === 'salida'} onClick={() => switchMode(setMode, setLines, setPresentationChoice, 'salida')}>
           {scanMessages.salida}
@@ -238,21 +277,10 @@ export function ScanPage() {
             <label htmlFor="scan-code">{scanMessages.code}</label>
             <input id="scan-code" ref={codeRef} value={code} autoComplete="off" autoFocus onChange={(event) => { setCode(event.target.value); setChoices([]); setPresentationChoice(null); setNotice(null) }} />
           </div>
-          <button type="submit" className="primary-button" disabled={looking}>{looking ? 'Buscando…' : scanMessages.add}</button>
+          <IconAction type="submit" icon={looking ? 'refresh' : 'search'} label={looking ? 'Buscando productos' : scanMessages.add} variant="primary" disabled={looking} />
         </form>
         {looking ? <ListSkeleton rows={3} label="Buscando coincidencias de producto…" /> : null}
-        {choices.length > 0 ? (
-          <ul className="choice-list">
-            {choices.map((choice) => (
-              <li key={choice.barcode}>
-                <button type="button" className="ghost-button" onClick={() => { void pick(choice.barcode) }}>
-                  <strong>{choice.name}</strong>
-                  <small>{choice.supplier ? `Proveedor: ${choice.supplier} · ` : 'Proveedor: sin asignar · '}Código: {choice.barcode}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {choices.length > 0 ? <ItemPickerResults options={choices.map((choice) => ({ id: choice.barcode, name: choice.name, details: `${choice.supplier ? `Proveedor: ${choice.supplier}` : 'Proveedor: sin asignar'} · Código: ${choice.barcode}` }))} onSelect={(barcode) => { void pick(barcode) }} /> : null}
         {presentationChoice ? (
           <div className="scan-presentation-choice" role="group" aria-label={scanMessages.choosePresentation}>
             <p><strong>{presentationChoice.card.name}</strong> · {scanMessages.choosePresentation}</p>
@@ -274,6 +302,18 @@ export function ScanPage() {
         ) : null}
       </Panel>
       <Panel title={mode === 'salida' ? 'Venta actual' : 'Ingreso actual'}>
+        {mode === 'salida' ? <fieldset className="scan-sale-completion"><legend>Al confirmar la venta</legend><label><input type="radio" name="saleCompletion" checked={saleCompletion === 'sale-only'} onChange={() => setSaleCompletion('sale-only')} /> Guardar sin factura</label><label><input type="radio" name="saleCompletion" checked={saleCompletion === 'invoice'} onChange={() => setSaleCompletion('invoice')} /> Preparar factura ahora</label></fieldset> : null}
+        <label className="field scan-payment-method">Bodega
+          <select value={activeWarehouseId ?? ''} onChange={(event) => setSelectedWarehouseId(event.target.value)} disabled={availableWarehouses.length < 2}>
+            {availableWarehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}
+          </select>
+        </label>
+        <label className="field scan-payment-method">{mode === 'salida' ? 'Método de cobro' : 'Método de pago de la compra'}
+          <select value={selectedPaymentMethod?.id ?? ''} onChange={(event) => setSelectedPaymentMethodId(event.target.value)} disabled={availablePaymentMethods.length === 0}>
+            {availablePaymentMethods.length === 0 ? <option value="">Configura un método de pago</option> : null}
+            {availablePaymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+          </select>
+        </label>
         {lines.length === 0 ? <p className="empty-row">{scanMessages.empty}</p> : null}
         <ul className="scan-lines">
           {lines.map((line) => (
@@ -306,19 +346,17 @@ export function ScanPage() {
               ) : (
                 <span>{formatMoney(line.salePrice ?? 0)}</span>
               )}
-              <button type="button" className="ghost-button" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}>
-                {scanMessages.remove}
-              </button>
+              <IconAction icon="remove" label={`${scanMessages.remove} ${line.name}`} onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} />
             </li>
           ))}
         </ul>
-        <p className="scan-total">
-          <span>{mode === 'salida' ? scanMessages.charge : scanMessages.costTotal}</span>
-          <strong>{totalReady ? formatMoney(total) : '—'}</strong>
-        </p>
-        <button type="button" className="primary-button" disabled={lines.length === 0 || !totalReady || posting} onClick={() => { void onConfirm() }}>
-          {posting ? 'Registrando…' : mode === 'ingreso' ? scanMessages.confirmIn : scanMessages.confirmOut}
-        </button>
+        <div className="scan-ticket-footer">
+          <p className="scan-total">
+            <span>{mode === 'salida' ? scanMessages.charge : scanMessages.costTotal}</span>
+            <strong>{totalReady ? formatMoney(total) : '—'}</strong>
+          </p>
+          <IconAction icon="confirm" label={posting ? 'Registrando movimiento' : mode === 'ingreso' ? scanMessages.confirmIn : scanMessages.confirmOut} variant="primary" disabled={lines.length === 0 || !totalReady || posting} onClick={() => { void onConfirm() }} />
+        </div>
         {posted.map((note) => <p key={note}>{note}</p>)}
         {notice ? <p role="status">{notice}</p> : null}
       </Panel>
@@ -331,6 +369,15 @@ function switchMode(setMode: (mode: ScanMode) => void, setLines: (lines: DraftLi
   setMode(mode)
   setLines([])
   setPresentationChoice(null)
+}
+
+function eligiblePresentations(card: StockCard, mode: ScanMode): CardPresentation[] {
+  return card.presentations.filter((presentation) => {
+    if (mode === 'ingreso') {
+      return presentation.purchasable
+    }
+    return presentation.sellable && presentation.salePrice !== null && presentation.salePrice > 0
+  })
 }
 
 function updateLine(setLines: (update: (lines: DraftLine[]) => DraftLine[]) => void, key: string, patch: Partial<DraftLine>): void {

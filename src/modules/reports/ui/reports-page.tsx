@@ -97,7 +97,7 @@ function SalesView({ report }: { report: SalesReport }) {
         <SummaryLine label="Venta promedio" value={money.format(report.summary.averageSale)} />
         <SummaryLine label="Margen bruto" value={`${quantity.format(report.summary.grossMarginPercent)} %`} />
         <SummaryLine label="Días con ventas" value={quantity.format(report.daily.length)} />
-        <SummaryLine label="Utilidad bruta" value={money.format(report.summary.grossProfit)} strong />
+        <SummaryLine label="Unidades vendidas" value={quantity.format(report.products.reduce((total, product) => total + product.quantity, 0))} />
       </Panel>
     </div>
     <Panel title="Ventas por producto">
@@ -138,18 +138,16 @@ function BalanceView({ report }: { report: FinancialReport }) {
 
 function IncomeView({ report }: { report: FinancialReport }) {
   const income = report.incomeStatement
-  return <div className="report-two-columns">
-    <Panel title="Ingresos y costo de ventas">
+  return <Panel title="Estado de resultados">
+    <p className="section-copy">Del {report.from} al {report.to}</p>
+    <div className="report-income-statement">
       <StatementRows title="Ingresos" rows={income.revenue.rows} total={income.revenue.total} />
       <StatementRows title="Costo de ventas" rows={income.cost.rows} total={income.cost.total} />
       <SummaryLine label="Utilidad bruta" value={money.format(income.grossProfit)} strong />
-    </Panel>
-    <Panel title="Estado de resultados">
-      <p className="section-copy">Del {report.from} al {report.to}</p>
       <StatementRows title="Gastos" rows={income.expense.rows} total={income.expense.total} />
       <SummaryLine label="Utilidad neta" value={money.format(income.netIncome)} strong />
-    </Panel>
-  </div>
+    </div>
+  </Panel>
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="report-metric"><span>{label}</span><strong>{value}</strong></div> }

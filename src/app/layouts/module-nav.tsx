@@ -50,10 +50,13 @@ function ModuleLinks({ module, modules, onNavigate, onExpandSidebar }: { module:
         <NavIcon name={module} />
         <span className="nav-label">{shellMessages[module]}</span>
       </Link>
-      {module === 'inventory' ? <ScanLink onNavigate={onNavigate} /> : null}
       {module === 'accounting' ? <Link to="/reports" className="nav-link" title="Reportes" onClick={onNavigate}>
         <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 19h16M6 16V9m6 7V5m6 11v-4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <span className="nav-label">Reportes</span>
+      </Link> : null}
+      {shouldShowOperationsLink(module, modules) ? <Link to="/operations" className="nav-link" title="Ventas y documentos" activeOptions={{ exact: false, includeSearch: false }} onClick={onNavigate}>
+        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h16v14H4z" strokeLinejoin="round"/><path d="M4 9h16M9 9v10m6-10v10" strokeLinecap="round"/></svg>
+        <span className="nav-label">Ventas y documentos</span>
       </Link> : null}
       {module === 'accounting' ? <Link to="/accounting/journal-entries" className="nav-link" title="Asientos contables" onClick={onNavigate}>
         <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 3h10v18l-5-3-5 3V3Z" strokeLinejoin="round"/><path d="M9.5 8h5M9.5 12h5" strokeLinecap="round"/></svg>
@@ -81,17 +84,18 @@ function SettingsLinks({ modules, onNavigate, onExpandSidebar }: { modules: read
       <Link to="/settings" className="nav-link nav-link--sub" activeOptions={{ exact: true }} onClick={onNavigate}>Resumen</Link>
       <Link to="/settings/users" className="nav-link nav-link--sub" onClick={onNavigate}>Usuarios y accesos</Link>
       {modules.includes('prices') ? <Link to="/settings/prices" className="nav-link nav-link--sub" onClick={onNavigate}>Política de precios</Link> : null}
+      <Link to="/settings/payments" className="nav-link nav-link--sub" onClick={onNavigate}>Métodos de pago y bancos</Link>
+      <Link to="/settings/controls" className="nav-link nav-link--sub" onClick={onNavigate}>Fiscal y operaciones</Link>
       <Link to="/settings/assistant" className="nav-link nav-link--sub" onClick={onNavigate}>Asistente con IA</Link>
+      {modules.includes('documents') ? <Link to="/settings/templates" className="nav-link nav-link--sub" onClick={onNavigate}>Plantillas de documentos</Link> : null}
       <Link to="/settings/integrations" className="nav-link nav-link--sub" onClick={onNavigate}>Integraciones MCP</Link>
     </div> : null}
   </div>
 }
 
-function ScanLink({ onNavigate }: { onNavigate: () => void }) {
-  return (
-    <Link to="/scan" className="nav-link" title={shellMessages.scan} onClick={onNavigate}>
-      <NavIcon name="scan" />
-      <span className="nav-label">{shellMessages.scan}</span>
-    </Link>
-  )
+function shouldShowOperationsLink(module: AppModule, modules: readonly AppModule[]): boolean {
+  if (module === 'documents') return true
+  if (module === 'inventory') return !modules.includes('documents')
+  if (module === 'accounting') return !modules.includes('documents') && !modules.includes('inventory')
+  return false
 }

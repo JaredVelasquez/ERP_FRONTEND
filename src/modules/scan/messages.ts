@@ -1,4 +1,4 @@
-export const scanMessages = {
+﻿export const scanMessages = {
   title: 'Escaneo',
   description: 'El lector escribe el código y confirma con Enter. Enter en la cantidad no busca un producto.',
   ingreso: 'Ingreso',
@@ -16,7 +16,8 @@ export const scanMessages = {
   empty: 'Todavía no hay líneas.',
   unknown: 'Ese código no está en el catálogo. La existencia no cambió.',
   lookupFailed: 'No se pudo leer el código.',
-  noPrice: 'Ese producto no tiene precio de venta. No se agregó.',
+  noPrice: 'Ese producto no tiene precio de venta aprobado. Asígnale uno para poder venderlo.',
+  notPurchasable: 'Ese producto no tiene una presentación habilitada para ingreso.',
   priceChanged: 'El precio cambió desde que agregaste el producto. Vuelve a leerlo antes de cobrar.',
   negative: 'La salida dejaría la existencia en negativo. No se registró.',
   cost: 'El ingreso necesita un costo de cero o mayor.',

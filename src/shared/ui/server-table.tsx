@@ -111,6 +111,7 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
   const [sort, setSort] = useState<ColumnSort | null>(null)
   const [menu, setMenu] = useState<OpenMenu | null>(null)
   const [draggingKey, setDraggingKey] = useState<string | null>(null)
+  const [draggingWidth, setDraggingWidth] = useState<number | null>(null)
   const [layoutError, setLayoutError] = useState<string | null>(null)
   const enabled = companyId !== null && companyId !== ''
   const sensors = useSensors(
@@ -254,11 +255,13 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
       return
     }
     setDraggingKey(event.active.id)
+    setDraggingWidth(event.active.rect.current.initial?.width ?? null)
     setMenu(null)
   }
 
   function onDragEnd(event: DragEndEvent) {
     setDraggingKey(null)
+    setDraggingWidth(null)
     const activeKey = event.active.id
     const overKey = event.over?.id
     if (typeof activeKey !== 'string' || typeof overKey !== 'string') {
@@ -389,7 +392,10 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
             }}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
-            onDragCancel={() => setDraggingKey(null)}
+            onDragCancel={() => {
+              setDraggingKey(null)
+              setDraggingWidth(null)
+            }}
           >
             <table className="ui-table">
               <thead>
@@ -421,7 +427,7 @@ export function ServerTable({ tableKey, companyId, columns, queryKey, empty, sea
               </tbody>
             </table>
             <DragOverlay dropAnimation={null}>
-              {draggingKey === null ? null : <div className="col-drag-preview">{labelFor(columns, draggingKey)}</div>}
+              {draggingKey === null ? null : <div className="col-drag-preview" style={draggingWidth === null ? undefined : { width: draggingWidth }}>{labelFor(columns, draggingKey)}</div>}
             </DragOverlay>
           </DndContext>
         </div>

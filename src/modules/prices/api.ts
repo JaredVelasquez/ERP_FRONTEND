@@ -101,7 +101,7 @@ async function request(path: string | URL, method = 'GET', body?: unknown): Prom
     if (isRecord(issue) && typeof issue.message === 'string') {
       throw new Error(issue.message)
     }
-    throw new Error('No se pudo completar la operaciÃ³n de precios.')
+    throw new Error('No se pudo completar la operación de precios.')
   }
   return response.json()
 }

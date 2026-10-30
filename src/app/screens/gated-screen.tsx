@@ -6,14 +6,15 @@ import { shellMessages } from '@/shared/i18n/messages'
 import { PageLoadingSkeleton } from '@/shared/ui/skeleton'
 
 export function createGatedScreen(
-  module: AppModule,
+  module: AppModule | readonly AppModule[],
   load: () => Promise<{ Page: ComponentType }>,
 ) {
   const Page = lazy(() => load().then((mod) => ({ default: mod.Page })))
 
   return function GatedScreen() {
     const { grants } = useSession()
-    const allowed = grants !== null && visibleModules(grants).includes(module)
+    const requiredModules = Array.isArray(module) ? module : [module]
+    const allowed = grants !== null && requiredModules.some((required) => visibleModules(grants).includes(required))
     if (!allowed) {
       return (
         <section className="session-expired" aria-labelledby="session-expired-title">

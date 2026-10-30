@@ -1,8 +1,10 @@
 import { appConfig } from '@/app/config/app-config'
 import { clearStoredRefreshToken, getStoredRefreshToken, setStoredRefreshToken } from '@/shared/api/refresh-token-store'
+import { clientPlatform } from '@/shared/api/client-platform'
 
 let accessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
+const browserRefreshLockName = 'erp.identity.refresh'
 
 export function setAccessToken(token: string | null): void {
   accessToken = token
@@ -33,10 +35,17 @@ async function fetchWithAccessToken(input: RequestInfo | URL, init: RequestInit)
 }
 
 async function requestRefresh(): Promise<string | null> {
+  if (canCoordinateBrowserRefresh()) {
+    return navigator.locks.request(browserRefreshLockName, requestRefreshWithoutLock)
+  }
+  return requestRefreshWithoutLock()
+}
+
+async function requestRefreshWithoutLock(): Promise<string | null> {
   const refreshToken = await getStoredRefreshToken()
   const response = await fetch(`${appConfig.gatewayUrl}/identity/refresh`, {
     method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(refreshToken === null ? {} : { refreshToken, clientPlatform: 'native' }),
+    body: JSON.stringify(refreshToken === null ? { clientPlatform: clientPlatform() } : { refreshToken, clientPlatform: clientPlatform() }),
   })
   if (!response.ok) {
     setAccessToken(null)
@@ -48,6 +57,12 @@ async function requestRefresh(): Promise<string | null> {
   setAccessToken(payload.accessToken)
   if (typeof payload.refreshToken === 'string') await setStoredRefreshToken(payload.refreshToken)
   return payload.accessToken
+}
+
+function canCoordinateBrowserRefresh(): boolean {
+  return clientPlatform() === 'web'
+    && typeof navigator !== 'undefined'
+    && typeof navigator.locks?.request === 'function'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

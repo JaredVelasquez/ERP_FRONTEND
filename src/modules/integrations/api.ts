@@ -21,7 +21,7 @@ async function request(path: string, method = 'GET', body?: unknown): Promise<un
   if (!response.ok) {
     const issue: unknown = await response.json().catch(() => null)
     const message = typeof issue === 'object' && issue !== null && 'message' in issue && typeof issue.message === 'string'
-      ? issue.message : 'No se pudo completar la operaciÃ³n.'
+      ? issue.message : 'No se pudo completar la operación.'
     throw new Error(message)
   }
   return response.json()

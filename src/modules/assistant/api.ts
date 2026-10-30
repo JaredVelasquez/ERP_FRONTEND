@@ -57,5 +57,5 @@ async function issue(response: Response): Promise<Error> {
     const message = payload.message
     if (typeof message === 'string') return new Error(message)
   }
-  return new Error(`La operaciÃ³n no se pudo completar (${response.status}).`)
+  return new Error(`La operación no se pudo completar (${response.status}).`)
 }

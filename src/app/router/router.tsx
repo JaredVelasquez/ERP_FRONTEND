@@ -2,6 +2,7 @@ import { StoreLayout } from '@/app/layouts/store-layout'
 import { shelfFamily } from '@/shared/catalog/shelf-families'
 import { LoginScreen } from '@/app/screens/login-screen'
 import { AssistantPage } from '@/modules/assistant'
+import { SalesFiscalWorkspace } from '@/app/screens/sales-fiscal-workspace'
 import { createGatedScreen } from '@/app/screens/gated-screen'
 import {
   createRootRoute,
@@ -41,9 +42,15 @@ const productsRoute = createRoute({
 const scanRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/scan',
-  component: createGatedScreen('inventory', () =>
-    import('@/modules/scan').then((mod) => ({ Page: mod.ScanPage })),
+  component: createGatedScreen(['inventory', 'accounting', 'documents'], () =>
+    Promise.resolve({ Page: SalesFiscalWorkspace }),
   ),
+})
+
+const operationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/operations',
+  component: createGatedScreen(['inventory', 'accounting', 'documents'], () => Promise.resolve({ Page: SalesFiscalWorkspace })),
 })
 
 const inventoryRoute = createRoute({
@@ -86,6 +93,14 @@ const reportsRoute = createRoute({
   ),
 })
 
+const fiscalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/fiscal',
+  component: createGatedScreen(['inventory', 'accounting', 'documents'], () =>
+    Promise.resolve({ Page: SalesFiscalWorkspace }),
+  ),
+})
+
 const importsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/imports',
@@ -99,6 +114,14 @@ const documentsRoute = createRoute({
   path: '/documents',
   component: createGatedScreen('documents', () =>
     import('@/modules/documents').then((mod) => ({ Page: mod.DocumentsPage })),
+  ),
+})
+
+const businessDocumentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/business-documents',
+  component: createGatedScreen(['inventory', 'accounting', 'documents'], () =>
+    Promise.resolve({ Page: SalesFiscalWorkspace }),
   ),
 })
 
@@ -146,6 +169,18 @@ const settingsDocumentsRoute = createRoute({
   getParentRoute: () => rootRoute, path: '/settings/documents',
   component: createGatedScreen('settings', () => import('@/modules/settings/ui/settings-page').then((mod) => ({ Page: () => <mod.SettingsPage section="documents" /> }))),
 })
+const settingsPaymentsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/settings/payments',
+  component: createGatedScreen('settings', () => import('@/modules/settings/ui/settings-page').then((mod) => ({ Page: () => <mod.SettingsPage section="payments" /> }))),
+})
+const settingsControlsRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/settings/controls',
+  component: createGatedScreen('settings', () => import('@/modules/settings/ui/settings-page').then((mod) => ({ Page: () => <mod.SettingsPage section="controls" /> }))),
+})
+const settingsTemplatesRoute = createRoute({
+  getParentRoute: () => rootRoute, path: '/settings/templates',
+  component: createGatedScreen('settings', () => import('@/modules/document-center').then((mod) => ({ Page: mod.TemplatesPage }))),
+})
 const settingsAssistantRoute = createRoute({
   getParentRoute: () => rootRoute, path: '/settings/assistant',
   component: createGatedScreen('settings', () => import('@/modules/settings/ui/settings-page').then((mod) => ({ Page: () => <mod.SettingsPage section="assistant" /> }))),
@@ -162,19 +197,25 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute,
   productsRoute,
   scanRoute,
+  operationsRoute,
   inventoryRoute,
   pricesRoute,
   accountingRoute,
   journalEntriesRoute,
   reportsRoute,
+  fiscalRoute,
   importsRoute,
   documentsRoute,
+  businessDocumentsRoute,
   assistantRoute,
   platformRoute,
   settingsRoute,
   settingsUsersRoute,
   settingsPricesRoute,
   settingsDocumentsRoute,
+  settingsPaymentsRoute,
+  settingsControlsRoute,
+  settingsTemplatesRoute,
   settingsAssistantRoute,
   integrationsRoute,
 ])

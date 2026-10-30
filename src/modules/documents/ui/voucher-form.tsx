@@ -98,7 +98,7 @@ export function VoucherForm({ companyId = null, onSigned }: VoucherFormProps) {
           onSigned?.()
         } catch (error) {
           setFailed(true)
-          setNotice(`El comprobante manual se guardÃ³, pero no se pudo vincular el ticket del POS. Puedes reintentarlo desde la fila: ${error instanceof Error ? error.message : 'error de carga'}`)
+          setNotice(`El comprobante manual se guardó, pero no se pudo vincular el ticket del POS. Puedes reintentarlo desde la fila: ${error instanceof Error ? error.message : 'error de carga'}`)
         }
       } else {
         setNotice(voucherMessages.saved)

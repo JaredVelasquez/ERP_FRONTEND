@@ -16,7 +16,7 @@ export function InventoryPage() {
 
   return (
     <div className="ops-page inventory-page">
-      <PageIntro title={inventoryMessages.title} description={inventoryMessages.description} action={<Link className="ui-button ui-button--primary" to="/scan">{inventoryMessages.scan} <span aria-hidden="true">↗</span></Link>} />
+      <PageIntro title={inventoryMessages.title} description={inventoryMessages.description} action={<Link className="ui-button ui-button--primary" to="/operations">{inventoryMessages.scan} <span aria-hidden="true">↗</span></Link>} />
       <ServerTable
         tableKey="inventory-documents"
         companyId={companyId}

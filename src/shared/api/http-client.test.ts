@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { authenticatedFetch, refreshAccessToken, setAccessToken } from './http-client'
 import { configureRefreshTokenStore } from './refresh-token-store'
+import { configureClientPlatform } from './client-platform'
 
 describe('authenticated requests', () => {
   let storedRefreshToken: string | null
@@ -8,6 +9,7 @@ describe('authenticated requests', () => {
   beforeEach(() => {
     storedRefreshToken = null
     setAccessToken(null)
+    configureClientPlatform('web')
     configureRefreshTokenStore({
       get: async () => storedRefreshToken,
       set: async (token) => { storedRefreshToken = token },
@@ -37,9 +39,22 @@ describe('authenticated requests', () => {
       'http://localhost:3000/identity/refresh',
       expect.objectContaining({
         credentials: 'include',
-        body: JSON.stringify({ refreshToken: 'refresh-old', clientPlatform: 'native' }),
+        body: JSON.stringify({ refreshToken: 'refresh-old', clientPlatform: 'web' }),
       }),
     )
+  })
+
+  it('coordinates refresh rotation across browser tabs with a shared web lock', async () => {
+    const request = vi.fn(async (_name: string, callback: () => Promise<string | null>) => callback())
+    vi.stubGlobal('navigator', { locks: { request } })
+    const fetchMock = vi.fn(async () => jsonResponse({ accessToken: 'access-new' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const token = await refreshAccessToken()
+
+    expect(token).toBe('access-new')
+    expect(request).toHaveBeenCalledWith('erp.identity.refresh', expect.any(Function))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes once after unauthorized response and retries with the new access token', async () => {
